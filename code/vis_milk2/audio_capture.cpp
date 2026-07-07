@@ -29,6 +29,10 @@ AudioCapture::AudioCapture()
 AudioCapture::~AudioCapture()
 {
     Shutdown();
+    delete[] m_fft_window;
+    delete[] m_fft_output;
+    delete[] m_waveform;
+    m_fft.CleanUp();
 }
 
 void on_process(void* userdata)
@@ -179,7 +183,13 @@ bool AudioCapture::Init(int sample_rate, int fft_size)
         if (!m_running.load())
         {
             fprintf(stderr, "AudioCapture: PipeWire unavailable (running without audio)\n");
-            Shutdown();
+            // Thread already finished, just clean thread handle
+            if (m_pw_thread)
+            {
+                static_cast<std::thread*>(m_pw_thread)->join();
+                delete static_cast<std::thread*>(m_pw_thread);
+                m_pw_thread = nullptr;
+            }
             return false;
         }
     }
@@ -204,13 +214,8 @@ void AudioCapture::Shutdown()
         delete static_cast<std::thread*>(m_pw_thread);
         m_pw_thread = nullptr;
     }
-    delete[] m_fft_window;
-    delete[] m_fft_output;
-    delete[] m_waveform;
-    m_fft_window = nullptr;
-    m_fft_output = nullptr;
-    m_waveform = nullptr;
-    m_fft.CleanUp();
+    // Don't free work buffers here - they may be used if Init failed partially.
+    // Destructor handles final cleanup.
 }
 
 void AudioCapture::Read(float& bass, float& mid, float& treb,
@@ -280,6 +285,11 @@ void AudioCapture::Read(float& bass, float& mid, float& treb,
 
 int AudioCapture::GetWaveform(float* dest, int max_samples) const
 {
+    if (!m_waveform || m_waveform_len == 0)
+    {
+        memset(dest, 0, max_samples * sizeof(float));
+        return 0;
+    }
     int n = m_waveform_len;
     if (n > max_samples) n = max_samples;
     memcpy(dest, m_waveform, n * sizeof(float));
