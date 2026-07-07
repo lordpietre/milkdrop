@@ -92,6 +92,6 @@ target_compile_definitions(milkdrop3 PRIVATE
 add_custom_command(TARGET milkdrop3 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/../resources
-        $<TARGET_FILE_DIR:milkdrop3>/resources
+        ${CMAKE_CURRENT_BINARY_DIR}/resources
     COMMENT "Copying resources..."
 )

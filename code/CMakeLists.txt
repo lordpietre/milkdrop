@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.10)
 project(MilkDrop3 VERSION 3.33 LANGUAGES C CXX)
 
 # C++ Standard
