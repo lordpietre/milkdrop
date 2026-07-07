@@ -14,6 +14,7 @@ MilkdropRenderer::MilkdropRenderer()
     , m_comp_shader_custom(0)
     , m_blur1_shader(0)
     , m_blur2_shader(0)
+    , m_wave_shader(0)
     , m_preset_engine(nullptr)
     , m_initialized(false)
     , m_first_frame(true)
@@ -44,6 +45,7 @@ MilkdropRenderer::~MilkdropRenderer()
     if (m_comp_shader_custom) m_ctx->DestroyShader(m_comp_shader_custom);
     if (m_blur1_shader) m_ctx->DestroyShader(m_blur1_shader);
     if (m_blur2_shader) m_ctx->DestroyShader(m_blur2_shader);
+    if (m_wave_shader) m_ctx->DestroyShader(m_wave_shader);
 }
 
 bool MilkdropRenderer::Init(GLContext* ctx, const char* data_path)
@@ -149,6 +151,36 @@ bool MilkdropRenderer::Init(GLContext* ctx, const char* data_path)
         m_blur2_u_c0 = glGetUniformLocation(m_blur2_shader, "_c0");
         m_blur2_u_c5 = glGetUniformLocation(m_blur2_shader, "_c5");
         m_blur2_u_c6 = glGetUniformLocation(m_blur2_shader, "_c6");
+    }
+
+    // Wave rendering shader (passthrough with vertex color)
+    {
+        const char* vs_src =
+            "#version 330 core\n"
+            "layout(location = 0) in vec2 pos;\n"
+            "layout(location = 1) in vec4 color;\n"
+            "out vec4 vColor;\n"
+            "void main() {\n"
+            "    vColor = color;\n"
+            "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+            "}\n";
+        const char* fs_src =
+            "#version 330 core\n"
+            "in vec4 vColor;\n"
+            "out vec4 fragColor;\n"
+            "void main() {\n"
+            "    fragColor = vColor;\n"
+            "}\n";
+        GLuint vs = m_shaders.CompileShaderStage(vs_src, GL_VERTEX_SHADER);
+        GLuint fs = m_shaders.CompileShaderStage(fs_src, GL_FRAGMENT_SHADER);
+        if (vs && fs)
+        {
+            m_wave_shader = m_shaders.LinkProgram(vs, fs);
+            glDeleteShader(vs);
+            glDeleteShader(fs);
+        }
+        if (!m_wave_shader)
+            fprintf(stderr, "Failed to compile wave shader\n");
     }
 
     if (!CreateRenderTargets())
@@ -354,7 +386,8 @@ void MilkdropRenderer::FillTestPattern()
     m_ctx->BindDefaultFBO();
 }
 
-void MilkdropRenderer::RenderFrame(float time, float dt)
+void MilkdropRenderer::RenderFrame(float time, float dt,
+                                    const float* waveform, int waveform_len)
 {
     if (!m_initialized) return;
 
@@ -371,6 +404,8 @@ void MilkdropRenderer::RenderFrame(float time, float dt)
     }
 
     RenderWarpPass(time);
+    if (waveform && waveform_len > 0)
+        RenderWaveform(waveform, waveform_len);
     RenderBlurPasses();
 
     m_ctx->BindDefaultFBO();
@@ -436,6 +471,63 @@ void MilkdropRenderer::RenderWarpPass(float time)
 
     GLuint shader = m_warp_shader_custom ? m_warp_shader_custom : m_warp_shader;
     m_mesh.Render(shader, m_vs_tex[0]);
+}
+
+void MilkdropRenderer::RenderWaveform(const float* samples, int len)
+{
+    if (!m_wave_shader) return;
+
+    // Build line strip vertices from waveform samples
+    // Draw directly into VS1 (current render target)
+    int n = len;
+    if (n > m_width) n = m_width;
+
+    // Allocate temp vertex buffer: position + color per vertex
+    struct WaveVert { float x, y; float r, g, b, a; };
+    std::vector<WaveVert> verts;
+    verts.reserve(n);
+
+    // Wave color based on bass/mid/treb (or use a fixed color)
+    float r = 0.3f, g = 0.8f, b = 0.3f, a = 0.8f;
+
+    for (int i = 0; i < n; i++)
+    {
+        float x = -1.0f + (float)i / (float)(n - 1) * 2.0f;
+        float y = samples[i] * 0.5f; // scale amplitude
+        if (y < -1.0f) y = -1.0f;
+        if (y > 1.0f) y = 1.0f;
+        verts.push_back({x, y, r, g, b, a});
+    }
+
+    // Upload and draw
+    GLuint vao, vbo;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(WaveVert),
+                 verts.data(), GL_STREAM_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(WaveVert), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(WaveVert),
+                          (void*)offsetof(WaveVert, r));
+    glEnableVertexAttribArray(1);
+
+    glUseProgram(m_wave_shader);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLineWidth(2.0f);
+
+    glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)verts.size());
+
+    glDisable(GL_BLEND);
+    glUseProgram(0);
+
+    glBindVertexArray(0);
+    glDeleteBuffers(1, &vbo);
+    glDeleteVertexArrays(1, &vao);
 }
 
 void MilkdropRenderer::RenderBlurPasses()

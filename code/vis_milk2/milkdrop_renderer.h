@@ -19,7 +19,8 @@ public:
 
     bool Init(GLContext* ctx, const char* data_path);
     void Resize(int w, int h);
-    void RenderFrame(float time, float dt);
+    void RenderFrame(float time, float dt,
+                     const float* waveform = nullptr, int waveform_len = 0);
     void FillTestPattern();
     void SetPresetEngine(PresetEngine* engine) { m_preset_engine = engine; }
 
@@ -36,6 +37,7 @@ private:
     bool CreateRenderTargets();
     void DestroyRenderTargets();
     void RenderWarpPass(float time);
+    void RenderWaveform(const float* samples, int len);
     void RenderBlurPasses();
     void RenderCompositePass();
 
@@ -66,11 +68,12 @@ public:
 
     // Shader programs
     GLuint m_warp_shader;
-    GLuint m_warp_shader_custom; // set from preset, 0 if none
+    GLuint m_warp_shader_custom;
     GLuint m_comp_shader;
-    GLuint m_comp_shader_custom; // set from preset, 0 if none
+    GLuint m_comp_shader_custom;
     GLuint m_blur1_shader;
     GLuint m_blur2_shader;
+    GLuint m_wave_shader;
 
     // Cached uniform locations
     GLint m_warp_u_texsize;

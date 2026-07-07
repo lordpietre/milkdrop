@@ -17,6 +17,9 @@ public:
     void Read(float& bass, float& mid, float& treb,
               float& bass_att, float& mid_att, float& treb_att);
 
+    // Get latest waveform samples (mono, call after Read())
+    int GetWaveform(float* dest, int max_samples) const;
+
     int GetSpectrumSize() const { return m_fft_size / 2; }
 
 private:
@@ -44,6 +47,10 @@ private:
     // FFT work buffers
     float* m_fft_window;
     float* m_fft_output;
+
+    // Latest waveform samples (for wave rendering)
+    float* m_waveform;
+    int m_waveform_len;
 
     // Smoothed outputs
     float m_bass, m_mid, m_treb;

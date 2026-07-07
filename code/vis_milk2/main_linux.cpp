@@ -141,6 +141,10 @@ int main(int argc, char* argv[])
         float bass_att = 0, mid_att = 0, treb_att = 0;
         g_audio.Read(bass, mid, treb, bass_att, mid_att, treb_att);
 
+        // Get waveform for wave rendering
+        float waveform[1024];
+        int waveform_len = g_audio.GetWaveform(waveform, 1024);
+
         // Evaluate preset equations with live audio
         g_presets.EvaluateFrame(time, 60.0f,
                                 bass, mid, treb,
@@ -148,7 +152,7 @@ int main(int argc, char* argv[])
                                 frameCount,
                                 &g_renderer);
 
-        g_renderer.RenderFrame(time, dt);
+        g_renderer.RenderFrame(time, dt, waveform, waveform_len);
 
         g_gl.SwapBuffers();
 

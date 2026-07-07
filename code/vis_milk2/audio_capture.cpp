@@ -18,6 +18,8 @@ AudioCapture::AudioCapture()
     , m_running(false)
     , m_fft_window(nullptr)
     , m_fft_output(nullptr)
+    , m_waveform(nullptr)
+    , m_waveform_len(0)
     , m_bass(0.0f), m_mid(0.0f), m_treb(0.0f)
     , m_bass_att(0.0f), m_mid_att(0.0f), m_treb_att(0.0f)
 {
@@ -164,6 +166,8 @@ bool AudioCapture::Init(int sample_rate, int fft_size)
     m_fft.Init(fft_size, fft_size, 1, 1.0f);
     m_fft_window = new float[fft_size]();
     m_fft_output = new float[fft_size / 2]();
+    m_waveform = new float[fft_size]();
+    m_waveform_len = fft_size;
 
     memset(m_ring, 0, sizeof(m_ring));
     m_ring_write.store(0, std::memory_order_relaxed);
@@ -202,8 +206,10 @@ void AudioCapture::Shutdown()
     }
     delete[] m_fft_window;
     delete[] m_fft_output;
+    delete[] m_waveform;
     m_fft_window = nullptr;
     m_fft_output = nullptr;
+    m_waveform = nullptr;
     m_fft.CleanUp();
 }
 
@@ -219,6 +225,9 @@ void AudioCapture::Read(float& bass, float& mid, float& treb,
         for (int i = 0; i < m_fft_size; i++)
             m_fft_window[i] = m_ring[(read_pos + i) % RING_SIZE];
         m_ring_read.store((read_pos + m_fft_size) % RING_SIZE, std::memory_order_release);
+
+        // Save waveform for wave rendering
+        memcpy(m_waveform, m_fft_window, m_fft_size * sizeof(float));
 
         m_fft.time_to_frequency_domain(m_fft_window, m_fft_output);
 
@@ -267,4 +276,12 @@ void AudioCapture::Read(float& bass, float& mid, float& treb,
     bass_att = m_bass_att;
     mid_att = m_mid_att;
     treb_att = m_treb_att;
+}
+
+int AudioCapture::GetWaveform(float* dest, int max_samples) const
+{
+    int n = m_waveform_len;
+    if (n > max_samples) n = max_samples;
+    memcpy(dest, m_waveform, n * sizeof(float));
+    return n;
 }
