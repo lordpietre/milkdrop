@@ -40,6 +40,10 @@ int main(int argc, char* argv[])
 
     if (!g_gl.CreateWindow(width, height, fullscreen))
     {
+        fprintf(stderr, "\nERROR: Failed to create OpenGL window/context.\n");
+        fprintf(stderr, "This machine may not support OpenGL 3.3 Core Profile.\n");
+        fprintf(stderr, "Press Enter to exit.\n");
+        getchar();
         return 1;
     }
 

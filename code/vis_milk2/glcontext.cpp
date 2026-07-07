@@ -69,9 +69,11 @@ bool GLContext::CreateWindow(int w, int h, bool fullscreen)
     // Clear initial error from glewExperimental
     glGetError();
 
-    fprintf(stdout, "  OpenGL: %s | GLSL: %s\n  Vendor: %s\n",
+    const char* sdl_video = SDL_GetCurrentVideoDriver();
+    fprintf(stdout, "  Video driver: %s\n", sdl_video ? sdl_video : "(unknown)");
+    fprintf(stdout, "  OpenGL: %s | GLSL: %s\n  Vendor: %s\n  Renderer: %s\n",
             glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION),
-            glGetString(GL_VENDOR));
+            glGetString(GL_VENDOR), glGetString(GL_RENDERER));
 
     SDL_GL_SetSwapInterval(1); // vsync on
 
