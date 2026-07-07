@@ -10,6 +10,7 @@
 PresetEngine::PresetEngine()
     : m_preset_version(100)
     , m_initialized(false)
+    , m_pp_rad(0.0), m_pp_ang(0.0), m_pp_px(0.0), m_pp_py(0.0)
 {}
 
 PresetEngine::~PresetEngine()
@@ -18,6 +19,16 @@ PresetEngine::~PresetEngine()
         te_free(pe.expr);
     for (auto& ie : m_init_exprs)
         te_free(ie.expr);
+    for (auto& pe : m_per_pixel_exprs)
+        te_free(pe.expr);
+}
+
+static void trim(std::string& s)
+{
+    while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r'))
+        s.pop_back();
+    while (!s.empty() && (s.front() == ' ' || s.front() == '\t'))
+        s.erase(0, 1);
 }
 
 void PresetEngine::RebuildVarBindings()
@@ -32,25 +43,62 @@ void PresetEngine::RebuildVarBindings()
         tv.context = 0;
         m_te_vars.push_back(tv);
     }
+    // Add per-vertex variables
+    {
+        te_variable tv;
+        tv.name = "rad";
+        tv.address = &m_pp_rad;
+        tv.type = TE_VARIABLE;
+        tv.context = 0;
+        m_te_vars.push_back(tv);
+    }
+    {
+        te_variable tv;
+        tv.name = "ang";
+        tv.address = &m_pp_ang;
+        tv.type = TE_VARIABLE;
+        tv.context = 0;
+        m_te_vars.push_back(tv);
+    }
+    {
+        te_variable tv;
+        tv.name = "PER_PIXEL_POINT.x";
+        tv.address = &m_pp_px;
+        tv.type = TE_VARIABLE;
+        tv.context = 0;
+        m_te_vars.push_back(tv);
+    }
+    {
+        te_variable tv;
+        tv.name = "PER_PIXEL_POINT.y";
+        tv.address = &m_pp_py;
+        tv.type = TE_VARIABLE;
+        tv.context = 0;
+        m_te_vars.push_back(tv);
+    }
 }
 
 bool PresetEngine::LoadPreset(const char* filename)
 {
-    // Free previous state
     for (auto& pe : m_per_frame_exprs)
         te_free(pe.expr);
     for (auto& ie : m_init_exprs)
         te_free(ie.expr);
+    for (auto& pe : m_per_pixel_exprs)
+        te_free(pe.expr);
     m_per_frame_exprs.clear();
     m_init_exprs.clear();
+    m_per_pixel_exprs.clear();
+    m_per_frame_eqns_raw.clear();
     m_vars.clear();
     m_te_vars.clear();
     m_preset_values.clear();
     m_per_pixel_eqns.clear();
+    m_per_frame_init.clear();
     m_warp_shader_text.clear();
     m_comp_shader_text.clear();
+    m_initialized = false;
 
-    // Extract preset name
     m_preset_name = filename;
     size_t slash = m_preset_name.find_last_of("/\\");
     if (slash != std::string::npos)
@@ -128,7 +176,7 @@ bool PresetEngine::LoadPreset(const char* filename)
         m_vars[buf] = 0.0;
     }
 
-    // Set scalar values from .milk file (may be overwritten by per-frame code)
+    // Set scalar values from .milk file
     for (auto& kv : m_preset_values)
     {
         auto it = m_vars.find(kv.first);
@@ -136,20 +184,19 @@ bool PresetEngine::LoadPreset(const char* filename)
             it->second = atof(kv.second.c_str());
     }
 
-    // Build var bindings for TinyExpr
     RebuildVarBindings();
 
     // Compile per-frame init expressions (one-shot)
     if (!m_per_frame_init.empty())
     {
-        // Split by lines
         std::istringstream stream(m_per_frame_init);
         std::string line;
         while (std::getline(stream, line))
         {
-            // Remove trailing semicolons and whitespace
-            while (!line.empty() && (line.back() == ';' || line.back() == ' ' || line.back() == '\t' || line.back() == '\r'))
+            trim(line);
+            while (!line.empty() && line.back() == ';')
                 line.pop_back();
+            trim(line);
             if (line.empty())
                 continue;
 
@@ -159,30 +206,22 @@ bool PresetEngine::LoadPreset(const char* filename)
 
             std::string var_name = line.substr(0, eq);
             std::string expr_str = line.substr(eq + 1);
+            trim(var_name);
 
-            // Trim whitespace
-            while (!var_name.empty() && var_name.back() == ' ') var_name.pop_back();
-            while (!var_name.empty() && var_name.front() == ' ') var_name.erase(0, 1);
-
-            // Check if var exists in our map
-            auto vit = m_vars.find(var_name);
-            if (vit == m_vars.end())
+            if (m_vars.find(var_name) == m_vars.end())
             {
-                // Create a new variable
                 m_vars[var_name] = 0.0;
                 RebuildVarBindings();
-                vit = m_vars.find(var_name);
             }
 
             int error = 0;
             te_expr* expr = te_compile(expr_str.c_str(), m_te_vars.data(), (int)m_te_vars.size(), &error);
             if (!expr)
             {
-                fprintf(stderr, "PresetEngine: init expr error for '%s': '%s'\n",
+                fprintf(stderr, "init expr error for '%s': '%s'\n",
                         var_name.c_str(), expr_str.c_str());
                 continue;
             }
-
             InitExpr ie;
             ie.var_name = var_name;
             ie.expr = expr;
@@ -194,8 +233,10 @@ bool PresetEngine::LoadPreset(const char* filename)
     for (const auto& eq_str : m_per_frame_eqns_raw)
     {
         std::string s = eq_str;
-        while (!s.empty() && (s.back() == ';' || s.back() == ' ' || s.back() == '\t' || s.back() == '\r'))
+        trim(s);
+        while (!s.empty() && s.back() == ';')
             s.pop_back();
+        trim(s);
         if (s.empty())
             continue;
 
@@ -205,31 +246,69 @@ bool PresetEngine::LoadPreset(const char* filename)
 
         std::string var_name = s.substr(0, eq);
         std::string expr_str = s.substr(eq + 1);
+        trim(var_name);
 
-        while (!var_name.empty() && var_name.back() == ' ') var_name.pop_back();
-        while (!var_name.empty() && var_name.front() == ' ') var_name.erase(0, 1);
-
-        auto vit = m_vars.find(var_name);
-        if (vit == m_vars.end())
+        if (m_vars.find(var_name) == m_vars.end())
         {
             m_vars[var_name] = 0.0;
             RebuildVarBindings();
-            vit = m_vars.find(var_name);
         }
 
         int error = 0;
         te_expr* expr = te_compile(expr_str.c_str(), m_te_vars.data(), (int)m_te_vars.size(), &error);
         if (!expr)
         {
-            fprintf(stderr, "PresetEngine: expr error for '%s': '%s'\n",
+            fprintf(stderr, "frame expr error for '%s': '%s'\n",
                     var_name.c_str(), expr_str.c_str());
             continue;
         }
-
         PerFrameExpr pfe;
         pfe.var_name = var_name;
         pfe.expr = expr;
         m_per_frame_exprs.push_back(pfe);
+    }
+
+    // Compile per-pixel expressions
+    if (!m_per_pixel_eqns.empty())
+    {
+        std::istringstream stream(m_per_pixel_eqns);
+        std::string line;
+        while (std::getline(stream, line))
+        {
+            trim(line);
+            while (!line.empty() && line.back() == ';')
+                line.pop_back();
+            trim(line);
+            if (line.empty())
+                continue;
+
+            size_t eq = line.find('=');
+            if (eq == std::string::npos)
+                continue;
+
+            std::string var_name = line.substr(0, eq);
+            std::string expr_str = line.substr(eq + 1);
+            trim(var_name);
+
+            if (m_vars.find(var_name) == m_vars.end())
+            {
+                m_vars[var_name] = 0.0;
+                RebuildVarBindings();
+            }
+
+            int error = 0;
+            te_expr* expr = te_compile(expr_str.c_str(), m_te_vars.data(), (int)m_te_vars.size(), &error);
+            if (!expr)
+            {
+                fprintf(stderr, "per_pixel expr error for '%s': '%s'\n",
+                        var_name.c_str(), expr_str.c_str());
+                continue;
+            }
+            PerPixelExpr ppe;
+            ppe.var_name = var_name;
+            ppe.expr = expr;
+            m_per_pixel_exprs.push_back(ppe);
+        }
     }
 
     m_initialized = true;
@@ -239,13 +318,9 @@ bool PresetEngine::LoadPreset(const char* filename)
 void PresetEngine::ApplyShaderOverrides(MilkdropRenderer* renderer)
 {
     if (!m_comp_shader_text.empty())
-    {
         renderer->CompileCompShader(m_comp_shader_text.c_str());
-    }
     if (!m_warp_shader_text.empty())
-    {
         renderer->CompileWarpShader(m_warp_shader_text.c_str());
-    }
 }
 
 bool PresetEngine::ParseMilkFile(const char* filename)
@@ -262,13 +337,11 @@ bool PresetEngine::ParseMilkFile(const char* filename)
 
     while (std::getline(file, line))
     {
-        while (!line.empty() && (line.back() == ' ' || line.back() == '\t' || line.back() == '\r'))
-            line.pop_back();
-
+        trim(line);
         if (line.empty())
             continue;
 
-        if (line.front() == '[' && line.back() == ']')
+        if (line.size() >= 2 && line[0] == '[' && line.back() == ']')
         {
             current_section = line.substr(1, line.size() - 2);
             continue;
@@ -283,10 +356,8 @@ bool PresetEngine::ParseMilkFile(const char* filename)
 
         std::string key = line.substr(0, eq_pos);
         std::string value = line.substr(eq_pos + 1);
-
-        while (!key.empty() && key.back() == ' ') key.pop_back();
-        while (!key.empty() && key.front() == ' ') key.erase(0, 1);
-        while (!value.empty() && value.front() == ' ') value.erase(0, 1);
+        trim(key);
+        trim(value);
 
         if (key.empty())
             continue;
@@ -351,13 +422,13 @@ void PresetEngine::EvaluateFrame(float time, float fps,
     m_vars["mid_att"] = mid_att;
     m_vars["treb_att"] = treb_att;
 
-    // Execute init expressions (one-shot)
+    // Execute init expressions (one-shot, then cleared)
     for (auto& ie : m_init_exprs)
     {
         double val = te_eval(ie.expr);
         m_vars[ie.var_name] = val;
     }
-    m_init_exprs.clear(); // one-shot
+    m_init_exprs.clear();
 
     // Evaluate per-frame expressions in order
     for (auto& pe : m_per_frame_exprs)
@@ -386,4 +457,56 @@ void PresetEngine::EvaluateFrame(float time, float fps,
     renderer->m_dy    = g("dy", 0.0f);
     renderer->m_sx    = g("sx", 1.0f);
     renderer->m_sy    = g("sy", 1.0f);
+}
+
+void PresetEngine::EvaluatePerPixel(int count,
+                                     const float* rad, const float* ang,
+                                     const float* px, const float* py,
+                                     float* out_zoom, float* out_rot,
+                                     float* out_warp,
+                                     float* out_cx, float* out_cy,
+                                     float* out_dx, float* out_dy,
+                                     float* out_sx, float* out_sy)
+{
+    if (!m_initialized || m_per_pixel_exprs.empty())
+        return;
+
+    for (int i = 0; i < count; i++)
+    {
+        // Set per-vertex variables
+        m_pp_rad = rad[i];
+        m_pp_ang = ang[i];
+        m_pp_px = px[i];
+        m_pp_py = py[i];
+
+        // Evaluate all per_pixel expressions for this vertex
+        // Each expression assigns to a variable; accumulate into output arrays
+        for (auto& pe : m_per_pixel_exprs)
+        {
+            double val = te_eval(pe.expr);
+
+            if (pe.var_name == "zoom" && out_zoom)
+                out_zoom[i] = (float)val;
+            else if (pe.var_name == "rot" && out_rot)
+                out_rot[i] = (float)val;
+            else if (pe.var_name == "warp" && out_warp)
+                out_warp[i] = (float)val;
+            else if (pe.var_name == "cx" && out_cx)
+                out_cx[i] = (float)val;
+            else if (pe.var_name == "cy" && out_cy)
+                out_cy[i] = (float)val;
+            else if (pe.var_name == "dx" && out_dx)
+                out_dx[i] = (float)val;
+            else if (pe.var_name == "dy" && out_dy)
+                out_dy[i] = (float)val;
+            else if (pe.var_name == "sx" && out_sx)
+                out_sx[i] = (float)val;
+            else if (pe.var_name == "sy" && out_sy)
+                out_sy[i] = (float)val;
+            // Set the global variable too
+            auto vit = m_vars.find(pe.var_name);
+            if (vit != m_vars.end())
+                vit->second = val;
+        }
+    }
 }

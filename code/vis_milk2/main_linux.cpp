@@ -93,6 +93,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Failed to initialize MilkDrop renderer\n");
         return 1;
     }
+    g_renderer.SetPresetEngine(&g_presets);
 
     // Load a preset
     if (!preset_path.empty())

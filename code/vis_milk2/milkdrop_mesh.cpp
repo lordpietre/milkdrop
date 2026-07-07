@@ -100,17 +100,21 @@ bool MilkdropMesh::Init(int grid_x, int grid_y, float aspect_x, float aspect_y)
 void MilkdropMesh::ComputeGridUVs(float time, float decay, float zoom,
                                    float rot, float cx, float cy,
                                    float dx, float dy,
-                                   float warp, float sx, float sy)
+                                   float warp, float sx, float sy,
+                                   const float* per_zoom,
+                                   const float* per_rot,
+                                   const float* per_warp,
+                                   const float* per_cx,
+                                   const float* per_cy,
+                                   const float* per_dx,
+                                   const float* per_dy,
+                                   const float* per_sx,
+                                   const float* per_sy)
 {
-    // Port of ComputeGridAlphaValues simplified:
-    // Compute per-vertex UV distortion using the warp variables
-
-    // Wrap zoom to prevent extreme values each frame
     zoom = fmodf(zoom, 8.0f);
     if (zoom < -4.0f) zoom += 8.0f;
     if (zoom >  4.0f) zoom -= 8.0f;
 
-    // Clamp decay
     decay = fmaxf(0.0f, fminf(1.0f, decay));
 
     int nVerts = (m_grid_x + 1) * (m_grid_y + 1);
@@ -119,33 +123,40 @@ void MilkdropMesh::ComputeGridUVs(float time, float decay, float zoom,
         GridVertex& v = m_verts[i];
         VertInfo& vi = m_vert_info[i];
 
-        // Start from original UV
         float u = v.tu_orig;
         float vv = v.tv_orig;
 
-        // Apply warp with polar-coordinate-based distortion
         float rad = vi.rad;
         float ang = vi.ang;
 
-        // Basic warp: displace UV based on radial distance
-        // This mimics what the preset 'warp' equation would do
-        float w = warp * 0.1f;
+        // Compute per-vertex warp values (global + per-pixel modifier)
+        float v_zoom = zoom + (per_zoom ? per_zoom[i] : 0.0f);
+        float v_rot  = rot  + (per_rot  ? per_rot[i]  : 0.0f);
+        float v_cx   = cx   + (per_cx   ? per_cx[i]   : 0.0f);
+        float v_cy   = cy   + (per_cy   ? per_cy[i]   : 0.0f);
+        float v_dx   = dx   + (per_dx   ? per_dx[i]   : 0.0f);
+        float v_dy   = dy   + (per_dy   ? per_dy[i]   : 0.0f);
+        float v_warp = warp + (per_warp ? per_warp[i] : 0.0f);
+        float v_sx   = sx   + (per_sx   ? per_sx[i]   : 0.0f);
+        float v_sy   = sy   + (per_sy   ? per_sy[i]   : 0.0f);
+
+        float w = v_warp * 0.1f;
 
         // Radial zoom
-        u = 0.5f + (u - 0.5f) * (1.0f / zoom);
-        vv = 0.5f + (vv - 0.5f) * (1.0f / zoom);
+        u = 0.5f + (u - 0.5f) * (1.0f / v_zoom);
+        vv = 0.5f + (vv - 0.5f) * (1.0f / v_zoom);
 
         // Rotational warping
-        float cos_r = cosf(rot);
-        float sin_r = sinf(rot);
+        float cos_r = cosf(v_rot);
+        float sin_r = sinf(v_rot);
         float ru = (u - 0.5f) * cos_r - (vv - 0.5f) * sin_r + 0.5f;
         float rv = (u - 0.5f) * sin_r + (vv - 0.5f) * cos_r + 0.5f;
         u = ru;
         vv = rv;
 
         // Center offset
-        u += cx;
-        vv += cy;
+        u += v_cx;
+        vv += v_cy;
 
         // Radial wave warp
         u += sinf(rad * 6.28318f * 4.0f + time) * w;
@@ -156,8 +167,8 @@ void MilkdropMesh::ComputeGridUVs(float time, float decay, float zoom,
         vv += cosf(ang * 2.0f + time * 1.7f) * w * 0.5f;
 
         // Apply stretch
-        u = (u - 0.5f) * sx + 0.5f;
-        vv = (vv - 0.5f) * sy + 0.5f;
+        u = (u - 0.5f) * v_sx + 0.5f;
+        vv = (vv - 0.5f) * v_sy + 0.5f;
 
         // Wrap mode
         if (u > 1.0f) u -= (int)u;

@@ -10,6 +10,7 @@
 
 #define NUM_BLUR_TEX 6
 
+class PresetEngine;
 class MilkdropRenderer
 {
 public:
@@ -20,6 +21,7 @@ public:
     void Resize(int w, int h);
     void RenderFrame(float time, float dt);
     void FillTestPattern();
+    void SetPresetEngine(PresetEngine* engine) { m_preset_engine = engine; }
 
     // Per-frame preset variables (to be set by preset engine later)
     float m_decay;
@@ -48,6 +50,7 @@ public:
     GLContext* m_ctx;
     GLShaderManager m_shaders;
     MilkdropMesh m_mesh;
+    PresetEngine* m_preset_engine;
 
     // Render target textures and FBOs
     GLuint m_vs_tex[2];

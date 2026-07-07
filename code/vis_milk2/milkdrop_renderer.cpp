@@ -1,4 +1,5 @@
 #include "milkdrop_renderer.h"
+#include "preset_engine.h"
 #include <cstdio>
 #include <algorithm>
 
@@ -13,6 +14,7 @@ MilkdropRenderer::MilkdropRenderer()
     , m_comp_shader_custom(0)
     , m_blur1_shader(0)
     , m_blur2_shader(0)
+    , m_preset_engine(nullptr)
     , m_initialized(false)
     , m_first_frame(true)
     , m_decay(0.004f)
@@ -385,9 +387,48 @@ void MilkdropRenderer::RenderWarpPass(float time)
     if (decay < 0.0f) decay = 0.0f;
     if (decay > 1.0f) decay = 1.0f;
 
+    int nVerts = m_mesh.GridVertsCount();
+    const float* rad = m_mesh.GetRadArray();
+    const float* ang = m_mesh.GetAngArray();
+    const float* px = m_mesh.GetPosXArray();
+    const float* py = m_mesh.GetPosYArray();
+
+    // Per-vertex modifier arrays
+    std::vector<float> per_zoom, per_rot, per_warp;
+    std::vector<float> per_cx, per_cy, per_dx, per_dy, per_sx, per_sy;
+
+    if (m_preset_engine && nVerts > 0)
+    {
+        per_zoom.resize(nVerts, 0.0f);
+        per_rot.resize(nVerts, 0.0f);
+        per_warp.resize(nVerts, 0.0f);
+        per_cx.resize(nVerts, 0.0f);
+        per_cy.resize(nVerts, 0.0f);
+        per_dx.resize(nVerts, 0.0f);
+        per_dy.resize(nVerts, 0.0f);
+        per_sx.resize(nVerts, 0.0f);
+        per_sy.resize(nVerts, 0.0f);
+
+        m_preset_engine->EvaluatePerPixel(
+            nVerts, rad, ang, px, py,
+            per_zoom.data(), per_rot.data(), per_warp.data(),
+            per_cx.data(), per_cy.data(),
+            per_dx.data(), per_dy.data(),
+            per_sx.data(), per_sy.data());
+    }
+
     m_mesh.ComputeGridUVs(time, decay, m_zoom, m_rot,
                           m_cx, m_cy, m_dx, m_dy,
-                          m_warp, m_sx, m_sy);
+                          m_warp, m_sx, m_sy,
+                          per_zoom.empty() ? nullptr : per_zoom.data(),
+                          per_rot.empty()  ? nullptr : per_rot.data(),
+                          per_warp.empty() ? nullptr : per_warp.data(),
+                          per_cx.empty()   ? nullptr : per_cx.data(),
+                          per_cy.empty()   ? nullptr : per_cy.data(),
+                          per_dx.empty()   ? nullptr : per_dx.data(),
+                          per_dy.empty()   ? nullptr : per_dy.data(),
+                          per_sx.empty()   ? nullptr : per_sx.data(),
+                          per_sy.empty()   ? nullptr : per_sy.data());
 
     m_ctx->BindFBO(m_vs_fbo[1]);
     glDisable(GL_BLEND);
