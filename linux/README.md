@@ -1,282 +1,153 @@
-# MilkDrop3 on Linux with Wine - Setup Guide
+# MilkDrop3 on Linux — Native Port
 
-This guide will help you run MilkDrop3 on Linux using Wine.
+A native Linux port of MilkDrop3 that runs without Wine.
+Uses SDL2 + OpenGL 3.3 Core + GLSL shaders + PipeWire audio capture.
 
-## Prerequisites
+## Current Status — Phase 4
 
-- Linux distribution (tested on Manjaro with Wine 10.13 Staging)
-- Wine (10.13 or later recommended, Wine Staging preferred)
-- winetricks
-- Basic terminal knowledge
+| Component             | Status     |
+|-----------------------|------------|
+| SDL2 window + events  | ✅ Done    |
+| OpenGL 3.3 Core FBOs  | ✅ Done    |
+| GLSL shaders (8)      | ✅ Done    |
+| Warp/blur/composite   | ✅ Done    |
+| Grid mesh 65×65       | ✅ Done    |
+| .milk preset loader   | ✅ Done    |
+| Per-frame equations   | ✅ Done    |
+| Per-pixel equations   | ✅ Done    |
+| Custom warp/comp shaders | ✅ Done |
+| PipeWire audio capture | ✅ Done |
+| FFT → bass/mid/treb   | ✅ Done    |
+| state.cpp port (glm)  | ❌ Pending |
+| Texture manager       | ❌ Pending |
+| Wave/shape rendering  | ❌ Pending |
 
-## System Requirements
+## Build Dependencies
 
-- **Wine version**: 10.13 or later (Wine Staging recommended)
-- **Architecture**: 64-bit system with wow64 support
-- **Graphics**: OpenGL-capable GPU with decent 3D support
+- GCC >= 10
+- CMake >= 3.10
+- SDL2
+- GLEW
+- GLM (OpenGL Mathematics)
+- PipeWire (>= 0.3, optional — falls back gracefully)
 
-## Installation Steps
-
-### 1. Install Required Packages
-
-#### On Arch/Manjaro:
-```bash
-sudo pacman -S wine winetricks
-```
-
-#### On Ubuntu/Debian:
-```bash
-sudo apt install wine winetricks
-```
-
-#### On Fedora:
-```bash
-sudo dnf install wine winetricks
-```
-
-### 2. Download MilkDrop3
-
-Download the official MilkDrop3 installer:
-```bash
-wget -O MilkDrop3.exe "https://github.com/milkdrop2077/MilkDrop3/releases/download/MilkDrop3/MilkDrop3.exe"
-```
-
-### 3. Set Up Wine Environment
-
-Install necessary Windows dependencies:
-```bash
-winetricks -q d3dx9 vcrun2019
-```
-
-This will install:
-- DirectX 9 libraries (d3dx9)
-- Visual C++ 2019 Redistributables
-
-**Note**: This process may take 5-10 minutes depending on your internet connection.
-
-### 4. Install MilkDrop3
-
-Run the installer with Wine:
-```bash
-wine MilkDrop3.exe
-```
-
-Follow the on-screen installation prompts. The default installation location will be:
-```
-~/.wine/drive_c/users/YOUR_USERNAME/Desktop/MilkDrop 3.31/
-```
-
-### 5. Replace with Linux-Compatible Executable
-
-MilkDrop3 requires a special Linux-compatible build. Replace the standard executable:
+### Install on Ubuntu/Debian
 
 ```bash
-# Download the Linux-compatible version
-wget -O "MilkDrop 3 linux.exe" "https://raw.githubusercontent.com/milkdrop2077/MilkDrop3/main/linux/MilkDrop%203%20linux.exe"
-
-# Replace the executable (adjust path if needed)
-cd ~/.wine/drive_c/users/$USER/Desktop/"MilkDrop 3.31"/
-rm "MilkDrop 3.exe"
-mv /path/to/downloaded/"MilkDrop 3 linux.exe" "MilkDrop 3.exe"
+sudo apt install cmake g++ libsdl2-dev libglew-dev libglm-dev libpipewire-0.3-dev
 ```
 
-### 6. Run MilkDrop3
-
-Navigate to the installation directory and run:
-```bash
-cd ~/.wine/drive_c/users/$USER/Desktop/"MilkDrop 3.31"/
-wine "MilkDrop 3.exe"
-```
-
-## Using the Launcher Script
-
-A convenient launcher script is included in the repository. Use it to easily start MilkDrop3:
+### Install on Arch/Manjaro
 
 ```bash
-# Download the launcher script from the repository
-wget -O milkdrop3-launcher.sh "https://raw.githubusercontent.com/milkdrop2077/MilkDrop3/main/milkdrop3-launcher.sh"
-
-# Make it executable
-chmod +x milkdrop3-launcher.sh
-
-# Run MilkDrop3
-./milkdrop3-launcher.sh
+sudo pacman -S cmake gcc sdl2 glew glm pipewire
 ```
 
-The launcher script automatically:
-- Sets optimal Wine environment variables for performance
-- Verifies installation paths
-- Displays helpful keyboard shortcuts
-- Suppresses unnecessary debug output
+## Build
 
-## Known Issues and Workarounds
-
-### Text Rendering Issues
-As mentioned in the original README, menu text (F1 help, L/M menus) may appear glitchy. This is a known issue with the Wine rendering layer.
-
-**Workaround**: The visualization itself works perfectly; you can navigate menus by memorizing keyboard shortcuts.
-
-### D3D Texture Warnings
-You may see numerous warnings like:
-```
-err:d3d:wined3d_texture_invalidate_location Sub-resource X does not have any up to date location
-```
-
-These are harmless Wine warnings related to texture management and don't affect functionality.
-
-### GLSL Shader Warnings
-Warnings about uninitialized shader variables are cosmetic and don't impact the visualizations.
-
-### Performance Issues
-If you experience performance issues:
-
-1. **Use Wine Staging**: It has better DirectX support
-2. **Enable CSMT**: Run with `STAGING_SHARED_MEMORY=1`
-3. **Try different Wine versions**: Sometimes newer/older versions work better
-4. **Check your GPU drivers**: Ensure you have the latest drivers installed
-
-## Audio Configuration
-
-MilkDrop3 needs an audio source to visualize. Options include:
-
-1. **System Audio**:
-   - Use PulseAudio/PipeWire loopback to route system audio to MilkDrop3
-   - Install `pavucontrol` to manage audio routing
-
-2. **Music Players**:
-   - MilkDrop3 can capture audio from Spotify, YouTube, VLC, etc.
-   - Make sure audio is playing before starting visualizations
-
-3. **Configure in Wine**:
-   ```bash
-   winecfg
-   ```
-   Go to the Audio tab and ensure PulseAudio is selected.
-
-## Keyboard Shortcuts (Essential for Linux)
-
-Since menu text may be glitchy, here are the essential shortcuts:
-
-- **F1**: Help menu (toggle)
-- **F2**: Toggle FPS (60/90/120 fps)
-- **F3**: Change auto-transition time
-- **F7**: Toggle always on top / borderless mode
-- **F8**: Beat detection mode
-- **F9**: Double-preset mode
-- **L**: Load preset
-- **M**: Mash-up presets
-- **Spacebar**: Next transition
-- **A**: Random preset
-- **Shift+A**: Previous preset
-- **C**: Randomize colors
-- **Escape**: Exit
-
-## Troubleshooting
-
-### Application Won't Start
 ```bash
-# Check Wine is working
-wine --version
-
-# Reinstall dependencies
-winetricks -q --force d3dx9 vcrun2019
-
-# Try running with more verbose output
-WINEDEBUG=+d3d wine "MilkDrop 3.exe"
+git clone https://github.com/lordpietre/milkdrop.git
+cd milkdrop
+bash build.sh
 ```
 
-### Crashes on Startup
-- Ensure you're using the Linux-compatible executable
-- Check that DirectX 9 libraries are installed
-- Try running with a 32-bit Wine prefix:
-  ```bash
-  WINEARCH=win32 WINEPREFIX=~/.wine32 winetricks d3dx9 vcrun2019
-  ```
-
-### No Visualizations Appearing
-- Ensure audio is playing
-- Check audio input in Windows sound settings (via `winecfg`)
-- Try running a music player first, then launch MilkDrop3
-
-## Performance Optimization
-
-### Environment Variables
+Or manually:
 ```bash
-# Enable Wine Staging shared memory (better performance)
-export STAGING_SHARED_MEMORY=1
-
-# Force OpenGL version
-export MESA_GL_VERSION_OVERRIDE=4.5
-
-# Run MilkDrop3
-wine "MilkDrop 3.exe"
+cd build
+cmake ../code
+make -j$(nproc)
 ```
 
-### Graphics Settings
-In MilkDrop3:
-- Lower resolution if needed (in settings.ini)
-- Reduce FPS with F2 if experiencing lag
-- Disable complex effects if GPU struggles
+The binary is at `build/vis_milk2/milkdrop3`.
 
-## Advanced: Desktop Entry (Optional)
+## Run
 
-Create a desktop launcher at `~/.local/share/applications/milkdrop3.desktop`:
-
-```desktop
-[Desktop Entry]
-Name=MilkDrop3
-Comment=Music Visualization
-Exec=bash -c 'cd ~/.wine/drive_c/users/$USER/Desktop/"MilkDrop 3.31/" && wine "MilkDrop 3.exe"'
-Icon=applications-multimedia
-Terminal=false
-Type=Application
-Categories=AudioVideo;Audio;
+```bash
+cd build/vis_milk2
+./milkdrop3
 ```
 
-## Additional Resources
+### Options
 
-- **Official Repository**: https://github.com/milkdrop2077/MilkDrop3
-- **Preset Collections**: Located in `Milkdrop3/presets/`
-- **Creating Presets**: Press F9 then Spacebar for double-presets
-- **WineHQ**: https://www.winehq.org/ for Wine documentation
+| Flag | Description |
+|------|-------------|
+| `-f` or `--fullscreen` | Start fullscreen |
+| `-w W H` | Set window size (e.g. `-w 1920 1080`) |
+
+### Presets
+
+The build script copies `presets/tests/*.milk` into the build directory.
+To use your own presets, place `.milk` files in `build/vis_milk2/presets/`.
+
+The default preset loaded is `101-per_frame.milk`.
+
+### Controls
+
+| Key | Action |
+|-----|--------|
+| `ESC` | Quit |
+
+## Architecture
+
+```
+main_linux.cpp          -- Entry point, SDL event loop, audio + preset + render per frame
+glcontext.h/.cpp        -- SDL2 window + OpenGL context + FBO/texture helpers
+glshader.h/.cpp         -- GLSL shader compiler, uniform cache, CompilePixelShader
+milkdrop_renderer.h/.cpp-- Pipeline: warp pass → 6 blur passes → composite pass
+milkdrop_mesh.h/.cpp    -- Grid mesh (65×65) with per-vertex UV distortion
+preset_engine.h/.cpp    -- .milk parser + TinyExpr equation evaluator
+audio_capture.h/.cpp    -- PipeWire loopback → ring buffer → FFT → bass/mid/treb
+fft.cpp                 -- FFT implementation (from original MilkDrop)
+tinyexpr.c              -- TinyExpr math expression library (zlib license)
+```
+
+### Pipeline
+
+```
+VS0 ──warp──→ VS1 ──blur×6──→ composite ──→ screen
+↑                              |
+└──────── swap ────────────────┘
+```
+
+The warp pass uses a 65×65 grid mesh with per-vertex UV distortion
+(zoom, rotation, center offset, radial/angular warp, stretch).
+Per-pixel equations from the preset modify these values per vertex.
+
+The blur chain applies cascaded gaussian blur (horizontal + vertical,
+each stage at half resolution).
+
+The composite pass blends the blurred result onto the screen.
+
+## Audio
+
+Audio is captured from the system's default audio sink via PipeWire.
+The capture runs in a separate thread with a lock-free ring buffer.
+FFT (1024 samples, 44100 Hz) decomposes the signal into three bands:
+- **Bass**: 0–761 Hz
+- **Mid**: 761–2897 Hz
+- **Treble**: 2897–22050 Hz
+
+Attack/release smoothing and peak-hold are applied.
+If PipeWire is not running, the visualizer continues without audio.
+
+## Known Issues
+
+- `pw_context_new()` fails if no PipeWire server is running (gracefully handled)
+- ns-eel2 JIT compiler does not work on Linux x86_64 — equations are evaluated with TinyExpr instead
+- Wave, shape, and sprite rendering not yet ported
+- Only one preset loaded at a time (no preset transitions or mashups yet)
+
+## License
+
+MilkDrop3 is licensed under the BSD 3-Clause License.
+See the LICENSE file for details.
+
+TinyExpr is licensed under the zlib License.
+See `code/vis_milk2/tinyexpr.h` for details.
 
 ## Credits
 
-- **MilkDrop3**: Created by MilkDrop2077
+- **MilkDrop3**: MilkDrop2077
 - **Original MilkDrop**: Ryan Geiss
-- **BeatDrop**: Maxim Volskiy
-
-## Support the Project
-
-If you enjoy MilkDrop3, consider supporting the developer:
-- Patreon: https://www.patreon.com/MilkDrop3
-- Buy Me a Coffee: https://www.buymeacoffee.com/MilkDrop2077/
-
----
-
-## Quick Start Summary
-
-```bash
-# 1. Install Wine and winetricks
-sudo pacman -S wine winetricks  # Adjust command for your distro
-
-# 2. Install Windows dependencies (takes 5-10 minutes)
-winetricks -q d3dx9 vcrun2019
-
-# 3. Download and install MilkDrop3
-wget -O MilkDrop3.exe "https://github.com/milkdrop2077/MilkDrop3/releases/download/MilkDrop3/MilkDrop3.exe"
-wine MilkDrop3.exe
-
-# 4. Replace with Linux-compatible executable
-cd ~/.wine/drive_c/users/$USER/Desktop/"MilkDrop 3.31"/
-wget -O "MilkDrop 3.exe" "https://raw.githubusercontent.com/milkdrop2077/MilkDrop3/main/linux/MilkDrop%203%20linux.exe"
-
-# 5. Download and run the launcher script
-cd ~
-wget -O milkdrop3-launcher.sh "https://raw.githubusercontent.com/milkdrop2077/MilkDrop3/main/linux/milkdrop3-launcher.sh"
-chmod +x milkdrop3-launcher.sh
-./milkdrop3-launcher.sh
-```
-
-**Enjoy the visualizations!** 🎵🎨
-
+- **Linux port**: lordpietre
+- **TinyExpr**: Lewis Van Winkle (https://codeplea.com/tinyexpr)

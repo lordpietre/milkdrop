@@ -1,5 +1,25 @@
 # MilkDrop3
 
+## Native Linux Port (in progress)
+
+This repository includes a **native Linux port** of MilkDrop3 that runs without Wine.
+It uses SDL2 + OpenGL 3.3 Core + GLSL + PipeWire. Currently implements:
+
+- OpenGL 3.3 Core render pipeline with FBOs (warp → blur → composite)
+- Grid mesh (65×65) with per-vertex UV distortion (zoom/rot/warp/cx/cy/dx/dy/sx/sy)
+- `.milk` preset loader with TinyExpr equation evaluator (per-frame + per-pixel)
+- Custom warp/composite shader compilation from presets
+- PipeWire audio capture → FFT → bass/mid/treb bands
+- Graceful degradation if PipeWire is unavailable
+
+Build: `bash build.sh` (requires SDL2, GLEW, glm, PipeWire dev packages)
+Run: `cd build/vis_milk2 && ./milkdrop3`
+See [`linux/README.md`](linux/README.md) for details.
+
+---
+
+# MilkDrop3
+
 - How to download and install : https://youtu.be/OQdZFlOHe5o<br/>
 - How to create a double-preset : https://youtu.be/AdcUPpp1O0k<br/>
 
