@@ -15,6 +15,7 @@ public:
     ~PresetEngine();
 
     bool LoadPreset(const char* filename);
+    void ApplyShaderOverrides(class MilkdropRenderer* renderer);
     void EvaluateFrame(float time, float fps,
                        float bass, float mid, float treb,
                        float bass_att, float mid_att, float treb_att,

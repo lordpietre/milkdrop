@@ -236,6 +236,18 @@ bool PresetEngine::LoadPreset(const char* filename)
     return true;
 }
 
+void PresetEngine::ApplyShaderOverrides(MilkdropRenderer* renderer)
+{
+    if (!m_comp_shader_text.empty())
+    {
+        renderer->CompileCompShader(m_comp_shader_text.c_str());
+    }
+    if (!m_warp_shader_text.empty())
+    {
+        renderer->CompileWarpShader(m_warp_shader_text.c_str());
+    }
+}
+
 bool PresetEngine::ParseMilkFile(const char* filename)
 {
     std::ifstream file(filename);

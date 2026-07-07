@@ -37,6 +37,14 @@ private:
     void RenderBlurPasses();
     void RenderCompositePass();
 
+public:
+    // Compile a custom warp shader from preset body text
+    bool CompileWarpShader(const char* body);
+    // Compile a custom composite shader from preset body text
+    bool CompileCompShader(const char* body);
+    // Reset to default shaders
+    void ResetShaders();
+
     GLContext* m_ctx;
     GLShaderManager m_shaders;
     MilkdropMesh m_mesh;
@@ -55,7 +63,9 @@ private:
 
     // Shader programs
     GLuint m_warp_shader;
+    GLuint m_warp_shader_custom; // set from preset, 0 if none
     GLuint m_comp_shader;
+    GLuint m_comp_shader_custom; // set from preset, 0 if none
     GLuint m_blur1_shader;
     GLuint m_blur2_shader;
 

@@ -105,6 +105,7 @@ int main(int argc, char* argv[])
         else
         {
             printf("Loaded preset: %s\n", g_presets.GetPresetName());
+            g_presets.ApplyShaderOverrides(&g_renderer);
         }
     }
 

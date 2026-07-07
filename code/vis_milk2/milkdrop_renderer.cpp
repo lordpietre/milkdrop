@@ -8,7 +8,9 @@ MilkdropRenderer::MilkdropRenderer()
     , m_height(768)
     , m_current_vs(0)
     , m_warp_shader(0)
+    , m_warp_shader_custom(0)
     , m_comp_shader(0)
+    , m_comp_shader_custom(0)
     , m_blur1_shader(0)
     , m_blur2_shader(0)
     , m_initialized(false)
@@ -35,7 +37,9 @@ MilkdropRenderer::~MilkdropRenderer()
 {
     DestroyRenderTargets();
     if (m_warp_shader) m_ctx->DestroyShader(m_warp_shader);
+    if (m_warp_shader_custom) m_ctx->DestroyShader(m_warp_shader_custom);
     if (m_comp_shader) m_ctx->DestroyShader(m_comp_shader);
+    if (m_comp_shader_custom) m_ctx->DestroyShader(m_comp_shader_custom);
     if (m_blur1_shader) m_ctx->DestroyShader(m_blur1_shader);
     if (m_blur2_shader) m_ctx->DestroyShader(m_blur2_shader);
 }
@@ -166,6 +170,71 @@ void MilkdropRenderer::Resize(int w, int h)
     float aspect_x = 1.0f;
     float aspect_y = (float)m_height / (float)m_width;
     m_mesh.Init(64, 48, aspect_x, aspect_y);
+}
+
+bool MilkdropRenderer::CompileWarpShader(const char* body)
+{
+    if (m_warp_shader_custom)
+    {
+        m_ctx->DestroyShader(m_warp_shader_custom);
+        m_warp_shader_custom = 0;
+    }
+
+    std::vector<ShaderParamInfo> params;
+    m_warp_shader_custom = m_shaders.CompilePixelShader(
+        body,
+        "#define rad _rad_ang.x\n"
+        "#define ang _rad_ang.y\n"
+        "#define uv _uv.xy\n"
+        "#define uv_orig _uv.zw\n",
+        params);
+
+    if (!m_warp_shader_custom)
+    {
+        fprintf(stderr, "Failed to compile custom warp shader\n");
+        return false;
+    }
+    return true;
+}
+
+bool MilkdropRenderer::CompileCompShader(const char* body)
+{
+    if (m_comp_shader_custom)
+    {
+        m_ctx->DestroyShader(m_comp_shader_custom);
+        m_comp_shader_custom = 0;
+    }
+
+    std::vector<ShaderParamInfo> params;
+    m_comp_shader_custom = m_shaders.CompilePixelShader(
+        body,
+        "#define rad _rad_ang.x\n"
+        "#define ang _rad_ang.y\n"
+        "#define uv _uv.xy\n"
+        "#define uv_orig _uv.xy\n"
+        "#define hue_shader _vDiffuse.xyz\n",
+        params);
+
+    if (!m_comp_shader_custom)
+    {
+        fprintf(stderr, "Failed to compile custom composite shader\n");
+        return false;
+    }
+    return true;
+}
+
+void MilkdropRenderer::ResetShaders()
+{
+    if (m_warp_shader_custom)
+    {
+        m_ctx->DestroyShader(m_warp_shader_custom);
+        m_warp_shader_custom = 0;
+    }
+    if (m_comp_shader_custom)
+    {
+        m_ctx->DestroyShader(m_comp_shader_custom);
+        m_comp_shader_custom = 0;
+    }
 }
 
 bool MilkdropRenderer::CreateRenderTargets()
@@ -312,7 +381,6 @@ void MilkdropRenderer::RenderFrame(float time, float dt)
 
 void MilkdropRenderer::RenderWarpPass(float time)
 {
-    // Compute distorted per-vertex UVs
     float decay = 1.0f - m_decay;
     if (decay < 0.0f) decay = 0.0f;
     if (decay > 1.0f) decay = 1.0f;
@@ -322,11 +390,11 @@ void MilkdropRenderer::RenderWarpPass(float time)
                           m_warp, m_sx, m_sy);
 
     m_ctx->BindFBO(m_vs_fbo[1]);
-
     glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
 
-    m_mesh.Render(m_warp_shader, m_vs_tex[0]);
+    GLuint shader = m_warp_shader_custom ? m_warp_shader_custom : m_warp_shader;
+    m_mesh.Render(shader, m_vs_tex[0]);
 }
 
 void MilkdropRenderer::RenderBlurPasses()
@@ -409,15 +477,20 @@ void MilkdropRenderer::RenderCompositePass()
     glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
 
-    m_ctx->UseShader(m_comp_shader);
+    GLuint shader = m_comp_shader_custom ? m_comp_shader_custom : m_comp_shader;
+    m_ctx->UseShader(shader);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_vs_tex[1]);
-    glUniform1i(glGetUniformLocation(m_comp_shader, "sampler_main"), 0);
+    glUniform1i(glGetUniformLocation(shader, "sampler_main"), 0);
 
-    m_shaders.SetVec4(m_comp_u_texsize,
-        (float)m_width, (float)m_height,
-        1.0f / (float)m_width, 1.0f / (float)m_height);
+    GLint texsize_loc = glGetUniformLocation(shader, "_c7");
+    if (texsize_loc >= 0)
+    {
+        m_shaders.SetVec4(texsize_loc,
+            (float)m_width, (float)m_height,
+            1.0f / (float)m_width, 1.0f / (float)m_height);
+    }
 
     MilkdropMesh::RenderQuad();
     m_ctx->UseShader(0);
