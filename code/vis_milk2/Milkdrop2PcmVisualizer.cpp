@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #ifdef DEBUG
 #define _CRTDBG_MAP_ALLOC
 #endif
@@ -16,6 +17,14 @@
 #include <ShellScalingApi.h> // for dpi awareness
 #pragma comment(lib, "shcore.lib") // for dpi awareness
 
+#include "..\audio\common.h"
+#else
+#include <stdlib.h>
+#include <math.h>
+#include <SDL2/SDL.h>
+#include <GL/glew.h>
+#endif
+
 #include "plugin.h"
 #include "resource.h"
 
@@ -26,18 +35,21 @@
 //#include <core/sdk/IPcmVisualizer.h>
 //#include <core/sdk/IPlaybackRemote.h>
 
-#include "..\audio\common.h"
-
-#define DLL_EXPORT __declspec(dllexport)
 //#define COMPILE_AS_DLL
 #define SAMPLE_SIZE 576
 #define DEFAULT_WIDTH 800;
 #define DEFAULT_HEIGHT 800;
 
 CPlugin g_plugin;
-HINSTANCE api_orig_hinstance = nullptr;
+
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
 _locale_t g_use_C_locale;
 char keyMappings[8];
+
+#ifdef _WIN32
+HINSTANCE api_orig_hinstance = nullptr;
 
 static IDirect3D9* pD3D9 = nullptr;
 static IDirect3DDevice9* pD3DDevice = nullptr;
@@ -59,9 +71,41 @@ static unsigned char pcmRightIn[SAMPLE_SIZE];
 static unsigned char pcmLeftOut[SAMPLE_SIZE];
 static unsigned char pcmRightOut[SAMPLE_SIZE];
 
-//static musik::core::sdk::IPlaybackService* playback = nullptr;
-
 static HICON icon = nullptr;
+#else
+static bool fullscreen = false;
+static bool stretch = false;
+static std::mutex pcmMutex;
+static unsigned char pcmLeftIn[SAMPLE_SIZE];
+static unsigned char pcmRightIn[SAMPLE_SIZE];
+static unsigned char pcmLeftOut[SAMPLE_SIZE];
+static unsigned char pcmRightOut[SAMPLE_SIZE];
+
+static void GetAudioBuf(unsigned char* pcmLeftIn, unsigned char* pcmRightIn, int sampleSize) {
+    // Stub - will be replaced in Phase 4 (Audio)
+}
+
+void RenderFrame() {
+    {
+        std::unique_lock<std::mutex> lock(pcmMutex);
+        memcpy(pcmLeftOut, pcmLeftIn, SAMPLE_SIZE);
+        memcpy(pcmRightOut, pcmRightIn, SAMPLE_SIZE);
+        memset(pcmLeftIn, 0, SAMPLE_SIZE);
+        memset(pcmRightIn, 0, SAMPLE_SIZE);
+    }
+
+    g_plugin.PluginRender(
+        (unsigned char*) pcmLeftOut,
+        (unsigned char*) pcmRightOut);
+}
+
+#endif // _WIN32/Linux shared globals
+
+#ifdef _WIN32
+
+#ifdef _WIN32
+#include "..\audio\loopback-capture.h"
+#include "..\audio\cleanup.h"
 
 void InitD3d(HWND hwnd, int width, int height) {
     pD3D9 = Direct3DCreate9(D3D_SDK_VERSION);

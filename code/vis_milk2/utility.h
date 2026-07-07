@@ -30,12 +30,16 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef __NULLSOFT_DX9_PLUGIN_SHELL_UTILITY_H__
 #define __NULLSOFT_DX9_PLUGIN_SHELL_UTILITY_H__ 1
 
+#ifdef _WIN32
 #include <windows.h>
 #include <crtdefs.h>
 #include <d3d9.h>
 #include <d3dx9.h>
+#endif
 
+#ifdef _WIN32
 #define SafeRelease(x) { if (x) {x->Release(); x=NULL;} }
+#endif
 #define SafeDelete(x) { if (x) {delete x; x=NULL;} }
 #define IsNullGuid(lpGUID) ( ((int*)lpGUID)[0]==0 && ((int*)lpGUID)[1]==0 && ((int*)lpGUID)[2]==0 && ((int*)lpGUID)[3]==0 )
 #define DlgItemIsChecked(hDlg, nIDDlgItem) ((SendDlgItemMessage(hDlg, nIDDlgItem, BM_GETCHECK, (WPARAM) 0, (LPARAM) 0) == BST_CHECKED) ? true : false)

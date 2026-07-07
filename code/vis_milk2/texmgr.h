@@ -32,10 +32,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define NUM_TEX 16
 
+#ifdef _WIN32
 #ifdef _DEBUG
-    #define D3D_DEBUG_INFO  // declare this before including d3d9.h
+    #define D3D_DEBUG_INFO
 #endif
 #include <d3d9.h>
+#endif
 #include "../ns-eel2/ns-eel.h"
 #include "md_defines.h"
 
@@ -59,7 +61,9 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 typedef struct
 {
+#ifdef _WIN32
 	LPDIRECT3DTEXTURE9     pSurface;
+#endif
 	int                    img_w, img_h;
     /*
 	int                    tex_w, tex_h;
@@ -95,7 +99,9 @@ public:
 	~texmgr();
 
 	// members
-	void Init(LPDIRECT3DDEVICE9 lpDD);           // DirectDraw object
+#ifdef _WIN32
+	void Init(LPDIRECT3DDEVICE9 lpDD);
+#endif
 	int  LoadTex(wchar_t *szFilename, int iSlot, char *szInitCode, char *szCode, float time, int frame, unsigned int ck);
 	void KillTex(int iSlot);
 	void Finish();
@@ -114,7 +120,9 @@ protected:
 	void StripLinefeedCharsAndComments(char *src, char *dest);
 
 	// data
-	LPDIRECT3DDEVICE9 m_lpDD;					
+#ifdef _WIN32
+	LPDIRECT3DDEVICE9 m_lpDD;
+#endif
 };
 
 #endif

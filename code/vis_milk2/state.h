@@ -35,7 +35,9 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdio.h>
 #include "texmgr.h"
 
+#ifdef _WIN32
 #include <d3dx9math.h> // for D3DXVECTOR3
+#endif
 
 //#include "evallib/eval.h"
 #include "../ns-eel2/ns-eel.h"

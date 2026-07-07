@@ -31,11 +31,14 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define __NULLSOFT_DX9_PLUGIN_SHELL_H__ 1
 
 #include "shell_defines.h"
-#include "dxcontext.h"
 #include "fft.h"
 #include "defines.h"
-#include "textmgr.h"
 #include <vector>
+
+#ifdef _WIN32
+#include "dxcontext.h"
+#include "textmgr.h"
+#endif
 
 #define TIME_HIST_SLOTS 128     // # of slots used if fps > 60.  half this many if fps==30.
 #define MAX_SONGS_PER_PAGE 40
