@@ -55,6 +55,8 @@ elseif(PLATFORM_LINUX)
         glshader.cpp
         milkdrop_renderer.cpp
         milkdrop_mesh.cpp
+        preset_engine.cpp
+        tinyexpr.c
         fft.cpp
     )
 

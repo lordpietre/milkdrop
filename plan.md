@@ -51,13 +51,13 @@ No existe `#ifdef __linux__` en ningún lado. El soporte actual es solo Wine.
 
 #### 3.2 OpenGL Context Wrapper — COMPLETADO
 - [x] `glcontext.h/.cpp` creado (reemplaza dxcontext)
-  - [x] SDL2 window + OpenGL 3.3 Core context
-  - [x] FBO management (render targets)
-  - [x] Texture creation/destruction
-  - [x] Shader compilation (glCompileShader + glLinkProgram)
-  - [x] Uniform setting helpers (float, vec2-4, mat4, mat4x3)
-  - [x] Fullscreen quad VAO/VBO
-  - [x] Event processing (quit, resize, keyboard)
+- [x] SDL2 window + OpenGL 3.3 Core context
+- [x] FBO management (render targets)
+- [x] Texture creation/destruction
+- [x] Shader compilation (glCompileShader + glLinkProgram)
+- [x] Uniform setting helpers (float, vec2-4, mat4, mat4x3)
+- [x] Fullscreen quad VAO/VBO
+- [x] Event processing (quit, resize, keyboard)
 
 #### 3.3 GLShaderManager — COMPLETADO
 - [x] Cargar GLSL desde archivos
@@ -68,81 +68,34 @@ No existe `#ifdef __linux__` en ningún lado. El soporte actual es solo Wine.
 #### 3.4 MilkDrop Render Pipeline — COMPLETADO
 - [x] `milkdrop_renderer.h/.cpp` implementa pipeline completo
   - [x] 2 VS render targets (double buffer) + 6 blur targets
-  - [x] Warp pass: VS0 → VS1 con warp pixel shader
+  - [x] Warp pass: VS0 → VS1 con warp pixel shader + grid mesh UVs
   - [x] Blur passes: gaussiano horizontal+vertical en cadena
   - [x] Composite pass: VS1 → pantalla con comp shader
   - [x] VS0/VS1 swap cada frame
-- [x] Pipeline funcional (testeado con Xvfb — sin errores)
+- [x] Grid mesh 65×65 con distorsión per-vertex (ComputeGridUVs)
+- [x] Test pattern procedural al iniciar
+- [x] Pipeline funcional sin errores
 
-#### 3.5 Por hacer (próximos pasos)
-- [ ] OpenGL texture manager (reemplazar texmgr)
-- [ ] Portar `state.cpp` con glm en vez de D3DXVECTOR3/4
-- [ ] Grid mesh warp (ComputeGridAlphaValues + WarpedBlit_Shaders)
-- [ ] Portar `milkdropfs.cpp` (render loop principal) a OpenGL
-- [ ] Portar `plugin.cpp` (shader compilation de presets con runtime)
+#### 3.5 Por hacer
+- [ ] Preset loader: parsear .milk files → variables de preset
+- [ ] Evaluación de ecuaciones por-frame con ns-eel2
+- [ ] Compilación runtime de shaders de preset (warp_ps/comp_ps body reemplazable)
+- [ ] Portar `state.cpp` a glm
+- [ ] OpenGL texture manager
+- [ ] Canvas/render-pass opcional (sprites, motion vectors)
 
-### ⏳ Fase 4: Audio (2 semanas) — Pendiente
-- [ ] PipeWire loopback capture
-- [ ] ALSA fallback
+### ⏳ Fase 4: Audio — Pendiente
+- [ ] PipeWire/ALSA loopback capture
+- [ ] FFT analysis → bass/mid/treb bands
 - [ ] Integrar con audiobuf.cpp
 
-### ⏳ Fase 5: Empaquetado y CI (1 semana) — Pendiente
+### ⏳ Fase 5: Empaquetado y CI — Pendiente
 - [ ] Flatpak / AppImage
 - [ ] GitHub Actions
 
-### ⏳ Fase 6: Pruebas y Polishing (2-3 semanas) — Pendiente
-- [ ] Probar presets .milk y .milk2
-- [ ] Verificar FPS
-- [ ] Probar multi-monitor
-
----
-
-## Roadmap por Fases
-
-### Fase 1: CMake Build System (1-2 semanas)
-- Migrar de `.vcxproj` a **CMake** 3.20+
-- Detectar plataforma con `if(WIN32)` / `if(UNIX)`
-- En Windows: seguir linkeando DirectX 9
-- En Linux: linkear SDL2, OpenGL, PipeWire/ALSA
-- Organizar targets: `milkdrop3` (ejecutable), `ns-eel2` (librería)
-- Copiar recursos (shaders, docs) al directorio de build
-
-### Fase 2: Abstracción de Plataforma con SDL2 (2-3 semanas)
-- Reemplazar `WinMain` + `HWND` + `MSG` loop con SDL2
-- Crear `main_linux.cpp` con SDL2
-- Envolver headers criticales con `#ifdef _WIN32`
-- Reemplazar `dxcontext` con `glcontext` (OpenGL)
-
-**Archivos creados/modificados:**
-- `code/CMakeLists.txt` ✓
-- `code/ns-eel2/CMakeLists.txt` ✓
-- `code/vis_milk2/CMakeLists.txt` ✓
-- `code/wdltypes.h` ✓ (stub)
-- `code/vis_milk2/shell_defines.h` ✓ (platform ifdef)
-- `code/vis_milk2/support.h` ✓ (platform ifdef)
-- `code/vis_milk2/dxcontext.h` ✓ (platform ifdef)
-- `code/main_linux.cpp` — pendiente
-
-### Fase 3: OpenGL + GLSL (4-6 semanas) — La fase crítica
-Reemplazar todo el pipeline DirectX 9 por OpenGL 3.3+.
-
-#### 3.1 Shaders: HLSL → GLSL
-Traducir los 8 archivos `.fx` a GLSL. El HLSL de MilkDrop3 es SM2.0/3.0, traducción directa.
-
-#### 3.2 Render Pipeline
-Reemplazar todas las interfaces DirectX 9 por OpenGL.
-
-#### 3.3 Referencia: projectM
-[projectM](https://github.com/projectM-visualizer/projectm) ya portó MilkDrop clásico a OpenGL. Usar como referencia para traducción de ecuaciones y pipeline.
-
-### Fase 4: Audio (2 semanas)
-Reemplazar WASAPI loopback con PipeWire (recomendado) o ALSA.
-
-### Fase 5: Empaquetado y CI (1 semana)
-Flatpak o AppImage. GitHub Actions para Linux.
-
-### Fase 6: Pruebas y Polishing (2-3 semanas)
-Probar presets, rendimiento, multi-monitor, diferentes distros.
+### ⏳ Fase 6: Plugin VLC — Pendiente
+- [ ] Interfaz plugin VLC en C
+- [ ] Compartir librería de render con VLC
 
 ---
 
@@ -160,38 +113,17 @@ Probar presets, rendimiento, multi-monitor, diferentes distros.
 
 ---
 
-## Estructura de Directorios Propuesta
+## Archivos Clave
 
-```
-code/
-├── CMakeLists.txt              # Raíz del build
-├── wdltypes.h                  # Stub para INT_PTR en Linux
-├── vis_milk2/
-│   ├── CMakeLists.txt
-│   ├── Milkdrop2PcmVisualizer.cpp  # Windows: MAIN entry point
-│   ├── main_linux.cpp           # Linux: MAIN entry point (SDL2)
-│   ├── glcontext.cpp/.h         # Contexto OpenGL (reemplaza dxcontext)
-│   ├── shaders/                 # GLSL (traducidos de HLSL .fx)
-│   │   ├── include.glsl
-│   │   ├── warp.vert / warp.frag
-│   │   ├── comp.vert / comp.frag
-│   │   └── blur.vert / blur.frag
-│   └── ... (resto sin cambios)
-├── audio/
-│   ├── audiobuf.cpp/.h          # Reutilizable
-│   ├── loopback-capture.cpp     # Solo Windows
-│   └── pipewire-capture.cpp     # Solo Linux
-├── ns-eel2/                     # Portable (C), ya compila en Linux
-└── resources/                   # Datos (shaders originales, docs)
-```
-
----
-
-## Estrategia de Implementación
-
-Para no romper el build de Windows, usar `#ifdef _WIN32` / `#ifdef __linux__` durante la transición:
-
-1. **Envolver** el código Windows en `#ifdef _WIN32`
-2. **Agregar** implementación Linux con `#else` / `#ifdef __linux__`
-3. **Refactorizar** gradualmente extrayendo interfaces comunes
-4. Los archivos nuevos para Linux van en archivos separados (`*_linux.cpp`)
+| Archivo | Propósito |
+|---------|-----------|
+| `code/CMakeLists.txt` | Build raíz multiplataforma |
+| `code/wdltypes.h` | Stub `INT_PTR` para Linux |
+| `code/vis_milk2/main_linux.cpp` | Entry point SDL2 |
+| `code/vis_milk2/glcontext.h/.cpp` | Contexto OpenGL (FBOs, VAOs, shaders) |
+| `code/vis_milk2/glshader.h/.cpp` | Shader manager + CompilePixelShader |
+| `code/vis_milk2/milkdrop_renderer.h/.cpp` | Pipeline warp→blur→composite |
+| `code/vis_milk2/milkdrop_mesh.h/.cpp` | Grid mesh 65×65 con compute de UVs |
+| `code/vis_milk2/fft.cpp` | FFT analysis stub |
+| `code/resources/Milkdrop2/data/*.glsl` | 8 shaders GLSL |
+| `build.sh` | Script build + instalación dependencias |

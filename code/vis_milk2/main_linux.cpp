@@ -1,15 +1,17 @@
 // MilkDrop3 - Linux Entry Point (SDL2 + OpenGL)
-// Phase 3: Using GLContext + MilkdropRenderer
+// Phase 3: Preset engine + MilkdropRenderer
 
 #include "glcontext.h"
 #include "glshader.h"
 #include "milkdrop_renderer.h"
+#include "preset_engine.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
 
 static GLContext g_gl;
 static MilkdropRenderer g_renderer;
+static PresetEngine g_presets;
 
 static const int FPS_TARGET = 60;
 static const int FRAME_DELAY_MS = 1000 / FPS_TARGET;
@@ -41,8 +43,8 @@ int main(int argc, char* argv[])
 
     // Find shader data path relative to executable
     std::string data_path;
+    std::string preset_path;
     {
-        // Try several locations for the shader .glsl files
         const char* candidates[] = {
             "resources/Milkdrop2/data",
             "../resources/Milkdrop2/data",
@@ -63,6 +65,27 @@ int main(int argc, char* argv[])
             fprintf(stderr, "Cannot find shader data directory\n");
             return 1;
         }
+
+        // Find presets directory
+        const char* preset_candidates[] = {
+            "presets",
+            "../presets",
+            "../../presets",
+        };
+        for (auto* cp : preset_candidates)
+        {
+            FILE* f = fopen((std::string(cp) + "/101-per_frame.milk").c_str(), "r");
+            if (f)
+            {
+                fclose(f);
+                preset_path = cp;
+                break;
+            }
+        }
+        if (preset_path.empty())
+        {
+            fprintf(stderr, "Warning: cannot find presets directory\n");
+        }
     }
 
     if (!g_renderer.Init(&g_gl, data_path.c_str()))
@@ -71,14 +94,28 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    printf("MilkDrop renderer initialized.\n");
-    printf("  Render targets: %dx%d\n", width, height);
-    printf("  Controls: ESC=quit\n\n");
+    // Load a preset
+    if (!preset_path.empty())
+    {
+        std::string preset_file = preset_path + "/101-per_frame.milk";
+        if (!g_presets.LoadPreset(preset_file.c_str()))
+        {
+            fprintf(stderr, "Failed to load preset, using defaults\n");
+        }
+        else
+        {
+            printf("Loaded preset: %s\n", g_presets.GetPresetName());
+        }
+    }
 
     // Draw initial test pattern into VS0 so we have content to warp
     {
         g_renderer.FillTestPattern();
     }
+
+    printf("MilkDrop renderer initialized.\n");
+    printf("  Render targets: %dx%d\n", width, height);
+    printf("  Controls: ESC=quit\n\n");
 
     Uint32 lastFrameTime = SDL_GetTicks();
     Uint32 startTime = lastFrameTime;
@@ -90,28 +127,24 @@ int main(int argc, char* argv[])
         Uint32 now = SDL_GetTicks();
         float time = (now - startTime) / 1000.0f;
         float dt = (now - lastFrameTime) / 1000.0f;
-
-        // Cap dt to avoid physics explosion on pause/resume
         if (dt > 0.1f) dt = 0.1f;
 
-        // Simulate preset variables (will come from preset engine later)
-        g_renderer.m_zoom  = 1.0f + sinf(time * 0.5f) * 0.3f;
-        g_renderer.m_rot   = sinf(time * 0.3f) * 0.05f;
-        g_renderer.m_warp  = 0.05f + fabsf(sinf(time * 0.2f)) * 0.15f;
-        g_renderer.m_cx    = sinf(time * 0.1f) * 0.02f;
-        g_renderer.m_cy    = cosf(time * 0.15f) * 0.02f;
+        // Evaluate preset equations (audio values are 0 for now)
+        g_presets.EvaluateFrame(time, 60.0f,
+                                0.0f, 0.0f, 0.0f,
+                                0.0f, 0.0f, 0.0f,
+                                frameCount,
+                                &g_renderer);
 
         g_renderer.RenderFrame(time, dt);
 
         g_gl.SwapBuffers();
 
-        // Frame rate limiting
         Uint32 frameTime = SDL_GetTicks() - lastFrameTime;
         if (frameTime < FRAME_DELAY_MS)
             SDL_Delay(FRAME_DELAY_MS - frameTime);
         lastFrameTime = SDL_GetTicks();
 
-        // FPS counter
         frameCount++;
         if (now - fpsTimer >= 1000)
         {
