@@ -153,9 +153,9 @@ int main(int argc, char* argv[])
     printf("  Presets: %s\n", preset_path.empty() ? "(none)" : preset_path.c_str());
     printf("  Controls: ESC=quit\n\n");
 
-    // Diagnostic: render a red quad directly to screen
+    // Diagnostic: render a red quad using the fullscreen quad VAO
     {
-        const char* vs = "#version 330 core\nlayout(location=0)in vec3 p;void main(){gl_Position=vec4(p,1);}\n";
+        const char* vs = "#version 330 core\nlayout(location=0)in vec3 p;layout(location=1)in vec2 u;void main(){gl_Position=vec4(p,1);}\n";
         const char* fs = "#version 330 core\nout vec4 c;void main(){c=vec4(1,0,0,1);}\n";
         GLuint vs_o = g_gl.CompileShader(vs, GL_VERTEX_SHADER);
         GLuint fs_o = g_gl.CompileShader(fs, GL_FRAGMENT_SHADER);
@@ -166,25 +166,13 @@ int main(int argc, char* argv[])
             if (prog)
             {
                 g_gl.UseShader(prog);
-                float verts[] = { -1,-1,0, 1,-1,0, 1,1,0, -1,1,0 };
-                GLuint vao, vbo;
-                glGenVertexArrays(1, &vao);
-                glGenBuffers(1, &vbo);
-                glBindVertexArray(vao);
-                glBindBuffer(GL_ARRAY_BUFFER, vbo);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STREAM_DRAW);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-                glEnableVertexAttribArray(0);
-                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-                glBindVertexArray(0);
-                glDeleteBuffers(1, &vbo);
-                glDeleteVertexArrays(1, &vao);
+                g_gl.DrawFullscreenQuad();  // draws 2 triangles (6 indices)
                 g_gl.UseShader(0);
                 g_gl.DestroyShader(prog);
                 g_gl.SwapBuffers();
-                printf("DIAG: drew red quad to screen. If you see RED, basic GL works.\n");
+                printf("DIAG: drew red fullscreen quad using VAO. If you see RED, basic GL works.\n");
                 printf("      If still GREEN, problem is SDL/GL context layer.\n");
-                SDL_Delay(2000);  // pause 2s so user can see
+                SDL_Delay(3000);
             }
         }
     }
