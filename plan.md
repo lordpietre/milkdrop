@@ -38,7 +38,7 @@ No existe `#ifdef __linux__` en ningún lado. El soporte actual es solo Wine.
 - [x] Ventana SDL2 + OpenGL 3.3 Core Profile funciona (testeado con Xvfb)
 - [x] FPS timing y event loop funcionando
 
-### ✅ Fase 3: OpenGL + GLSL — EN PROGRESO
+### ✅ Fase 3: OpenGL + GLSL — COMPLETADA
 #### 3.1 Shaders: HLSL → GLSL — COMPLETADO
 - [x] `include.fx` → `include.glsl` (todos los uniforms, samplers, #defines)
 - [x] `warp_vs.fx` → `warp_vs.glsl`
@@ -76,24 +76,36 @@ No existe `#ifdef __linux__` en ningún lado. El soporte actual es solo Wine.
 - [x] Test pattern procedural al iniciar
 - [x] Pipeline funcional sin errores
 
-#### 3.5 Por hacer
-- [ ] Preset loader: parsear .milk files → variables de preset
-- [ ] Evaluación de ecuaciones por-frame con ns-eel2
-- [ ] Compilación runtime de shaders de preset (warp_ps/comp_ps body reemplazable)
-- [ ] Portar `state.cpp` a glm
-- [ ] OpenGL texture manager
+#### 3.5 Preset Engine — COMPLETADO
+- [x] `preset_engine.h/.cpp`: parse `.milk` files (INI-like, key=value, secciones)
+- [x] Variables registradas: zoom, rot, warp, cx, cy, dx, dy, sx, sy, decay, time, bass, mid, treb, frame, ib_*, ob_*, q1..q8
+- [x] Evaluación de ecuaciones per-frame con TinyExpr (reemplaza ns-eel2 JIT, no portable a Linux x86_64)
+- [x] Evaluación de ecuaciones per-pixel con TinyExpr por vértice
+  - [x] Soporte de variables `rad`, `ang`, `PER_PIXEL_POINT.x/y`
+  - [x] Modificadores por vértice para zoom, rot, warp, cx, cy, dx, dy, sx, sy
+- [x] Compilación runtime de shaders warp_ps/comp_ps desde `.milk`
+
+### ✅ Fase 4: Audio — COMPLETADA
+- [x] `audio_capture.h/.cpp`: captura de audio por PipeWire
+  - [x] Hilo separado para PipeWire main loop
+  - [x] Ring buffer lock-free para paso de audio al hilo principal
+  - [x] FFT -> descomposición en bandas bass/mid/treb
+  - [x] Smoothing attack/release y peak hold
+- [x] Graceful degradation si PipeWire no está disponible
+- [x] Integración en main_loop.cpp
+
+### ⏳ Fase 5: Features avanzadas — Pendiente
+- [ ] Portar `state.cpp` a glm (sprites, waves, text)
+- [ ] OpenGL texture manager (reemplazar texmgr)
 - [ ] Canvas/render-pass opcional (sprites, motion vectors)
+- [ ] Carga de texturas desde .milk (sampler_fw_*)
+- [ ] Soporte de wave rendering
 
-### ⏳ Fase 4: Audio — Pendiente
-- [ ] PipeWire/ALSA loopback capture
-- [ ] FFT analysis → bass/mid/treb bands
-- [ ] Integrar con audiobuf.cpp
-
-### ⏳ Fase 5: Empaquetado y CI — Pendiente
+### ⏳ Fase 6: Empaquetado y CI — Pendiente
 - [ ] Flatpak / AppImage
 - [ ] GitHub Actions
 
-### ⏳ Fase 6: Plugin VLC — Pendiente
+### ⏳ Fase 7: Plugins — Pendiente
 - [ ] Interfaz plugin VLC en C
 - [ ] Compartir librería de render con VLC
 
@@ -119,11 +131,14 @@ No existe `#ifdef __linux__` en ningún lado. El soporte actual es solo Wine.
 |---------|-----------|
 | `code/CMakeLists.txt` | Build raíz multiplataforma |
 | `code/wdltypes.h` | Stub `INT_PTR` para Linux |
-| `code/vis_milk2/main_linux.cpp` | Entry point SDL2 |
+| `code/vis_milk2/main_linux.cpp` | Entry point SDL2 + loop principal |
 | `code/vis_milk2/glcontext.h/.cpp` | Contexto OpenGL (FBOs, VAOs, shaders) |
 | `code/vis_milk2/glshader.h/.cpp` | Shader manager + CompilePixelShader |
 | `code/vis_milk2/milkdrop_renderer.h/.cpp` | Pipeline warp→blur→composite |
 | `code/vis_milk2/milkdrop_mesh.h/.cpp` | Grid mesh 65×65 con compute de UVs |
-| `code/vis_milk2/fft.cpp` | FFT analysis stub |
+| `code/vis_milk2/preset_engine.h/.cpp` | Preset engine: parse .milk + TinyExpr eval |
+| `code/vis_milk2/tinyexpr.h/.c` | Evaluador matemático TinyExpr (zlib license) |
+| `code/vis_milk2/audio_capture.h/.cpp` | Captura PipeWire + FFT + bandas |
+| `code/vis_milk2/fft.cpp` | FFT analysis |
 | `code/resources/Milkdrop2/data/*.glsl` | 8 shaders GLSL |
 | `build.sh` | Script build + instalación dependencias |

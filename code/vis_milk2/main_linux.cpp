@@ -5,6 +5,7 @@
 #include "glshader.h"
 #include "milkdrop_renderer.h"
 #include "preset_engine.h"
+#include "audio_capture.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -12,6 +13,7 @@
 static GLContext g_gl;
 static MilkdropRenderer g_renderer;
 static PresetEngine g_presets;
+static AudioCapture g_audio;
 
 static const int FPS_TARGET = 60;
 static const int FRAME_DELAY_MS = 1000 / FPS_TARGET;
@@ -95,6 +97,9 @@ int main(int argc, char* argv[])
     }
     g_renderer.SetPresetEngine(&g_presets);
 
+    // Initialize audio capture
+    g_audio.Init(44100, 1024);
+
     // Load a preset
     if (!preset_path.empty())
     {
@@ -131,10 +136,15 @@ int main(int argc, char* argv[])
         float dt = (now - lastFrameTime) / 1000.0f;
         if (dt > 0.1f) dt = 0.1f;
 
-        // Evaluate preset equations (audio values are 0 for now)
+        // Read audio
+        float bass = 0, mid = 0, treb = 0;
+        float bass_att = 0, mid_att = 0, treb_att = 0;
+        g_audio.Read(bass, mid, treb, bass_att, mid_att, treb_att);
+
+        // Evaluate preset equations with live audio
         g_presets.EvaluateFrame(time, 60.0f,
-                                0.0f, 0.0f, 0.0f,
-                                0.0f, 0.0f, 0.0f,
+                                bass, mid, treb,
+                                bass_att, mid_att, treb_att,
                                 frameCount,
                                 &g_renderer);
 
@@ -156,6 +166,7 @@ int main(int argc, char* argv[])
         }
     }
 
+    g_audio.Shutdown();
     g_gl.DestroyWindow();
     SDL_Quit();
 

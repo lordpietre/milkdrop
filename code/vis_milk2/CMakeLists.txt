@@ -58,6 +58,7 @@ elseif(PLATFORM_LINUX)
         preset_engine.cpp
         tinyexpr.c
         fft.cpp
+        audio_capture.cpp
     )
 
     add_executable(milkdrop3
