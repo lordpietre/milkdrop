@@ -6,6 +6,7 @@
 #include "milkdrop_renderer.h"
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 
 static GLContext g_gl;
 static MilkdropRenderer g_renderer;
@@ -74,6 +75,11 @@ int main(int argc, char* argv[])
     printf("  Render targets: %dx%d\n", width, height);
     printf("  Controls: ESC=quit\n\n");
 
+    // Draw initial test pattern into VS0 so we have content to warp
+    {
+        g_renderer.FillTestPattern();
+    }
+
     Uint32 lastFrameTime = SDL_GetTicks();
     Uint32 startTime = lastFrameTime;
     int frameCount = 0;
@@ -87,6 +93,13 @@ int main(int argc, char* argv[])
 
         // Cap dt to avoid physics explosion on pause/resume
         if (dt > 0.1f) dt = 0.1f;
+
+        // Simulate preset variables (will come from preset engine later)
+        g_renderer.m_zoom  = 1.0f + sinf(time * 0.5f) * 0.3f;
+        g_renderer.m_rot   = sinf(time * 0.3f) * 0.05f;
+        g_renderer.m_warp  = 0.05f + fabsf(sinf(time * 0.2f)) * 0.15f;
+        g_renderer.m_cx    = sinf(time * 0.1f) * 0.02f;
+        g_renderer.m_cy    = cosf(time * 0.15f) * 0.02f;
 
         g_renderer.RenderFrame(time, dt);
 

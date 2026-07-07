@@ -54,6 +54,7 @@ elseif(PLATFORM_LINUX)
         glcontext.cpp
         glshader.cpp
         milkdrop_renderer.cpp
+        milkdrop_mesh.cpp
         fft.cpp
     )
 

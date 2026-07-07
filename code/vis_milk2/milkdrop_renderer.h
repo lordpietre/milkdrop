@@ -3,6 +3,7 @@
 
 #include "glcontext.h"
 #include "glshader.h"
+#include "milkdrop_mesh.h"
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
@@ -18,16 +19,27 @@ public:
     bool Init(GLContext* ctx, const char* data_path);
     void Resize(int w, int h);
     void RenderFrame(float time, float dt);
+    void FillTestPattern();
+
+    // Per-frame preset variables (to be set by preset engine later)
+    float m_decay;
+    float m_zoom;
+    float m_rot;
+    float m_cx, m_cy;
+    float m_dx, m_dy;
+    float m_warp;
+    float m_sx, m_sy;
 
 private:
     bool CreateRenderTargets();
     void DestroyRenderTargets();
-    void RenderWarpPass();
+    void RenderWarpPass(float time);
     void RenderBlurPasses();
     void RenderCompositePass();
 
     GLContext* m_ctx;
     GLShaderManager m_shaders;
+    MilkdropMesh m_mesh;
 
     // Render target textures and FBOs
     GLuint m_vs_tex[2];

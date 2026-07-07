@@ -13,6 +13,13 @@ MilkdropRenderer::MilkdropRenderer()
     , m_blur2_shader(0)
     , m_initialized(false)
     , m_first_frame(true)
+    , m_decay(0.004f)
+    , m_zoom(1.0f)
+    , m_rot(0.0f)
+    , m_cx(0.0f), m_cy(0.0f)
+    , m_dx(0.0f), m_dy(0.0f)
+    , m_warp(0.1f)
+    , m_sx(0.0f), m_sy(0.0f)
 {
     m_vs_tex[0] = m_vs_tex[1] = 0;
     m_vs_fbo[0] = m_vs_fbo[1] = 0;
@@ -39,6 +46,15 @@ bool MilkdropRenderer::Init(GLContext* ctx, const char* data_path)
     m_width = ctx->Width();
     m_height = ctx->Height();
 
+    // Init mesh
+    float aspect_x = 1.0f;
+    float aspect_y = (float)m_height / (float)m_width;
+    if (!m_mesh.Init(64, 48, aspect_x, aspect_y))
+    {
+        fprintf(stderr, "Failed to init mesh\n");
+        return false;
+    }
+
     // Load shader templates from disk
     if (!m_shaders.LoadTemplates(data_path))
     {
@@ -61,7 +77,6 @@ bool MilkdropRenderer::Init(GLContext* ctx, const char* data_path)
             fprintf(stderr, "Failed to compile warp shader\n");
             return false;
         }
-        // Cache the texsize uniform location
         m_warp_u_texsize = glGetUniformLocation(m_warp_shader, "_c7");
     }
 
@@ -86,14 +101,11 @@ bool MilkdropRenderer::Init(GLContext* ctx, const char* data_path)
 
     // Build blur shaders using vs_src from templates
     {
-        // Blur1 (horizontal)
-        std::string vs_src = m_shaders.m_blur_vs_text;
-        std::string fs_src = m_shaders.m_blur1_ps_text;
-        std::string full_vs = "#version 330 core\n" + vs_src;
-        std::string full_fs = "#version 330 core\n" + fs_src;
+        std::string full_vs = "#version 330 core\n" + m_shaders.m_blur_vs_text;
+        std::string fs_src = "#version 330 core\n" + m_shaders.m_blur1_ps_text;
 
         GLuint vs = m_shaders.CompileShaderStage(full_vs.c_str(), GL_VERTEX_SHADER);
-        GLuint fs = m_shaders.CompileShaderStage(full_fs.c_str(), GL_FRAGMENT_SHADER);
+        GLuint fs = m_shaders.CompileShaderStage(fs_src.c_str(), GL_FRAGMENT_SHADER);
         if (vs && fs)
         {
             m_blur1_shader = m_shaders.LinkProgram(vs, fs);
@@ -112,14 +124,11 @@ bool MilkdropRenderer::Init(GLContext* ctx, const char* data_path)
     }
 
     {
-        // Blur2 (vertical)
-        std::string vs_src = m_shaders.m_blur_vs_text;
-        std::string fs_src = m_shaders.m_blur2_ps_text;
-        std::string full_vs = "#version 330 core\n" + vs_src;
-        std::string full_fs = "#version 330 core\n" + fs_src;
+        std::string full_vs = "#version 330 core\n" + m_shaders.m_blur_vs_text;
+        std::string fs_src = "#version 330 core\n" + m_shaders.m_blur2_ps_text;
 
         GLuint vs = m_shaders.CompileShaderStage(full_vs.c_str(), GL_VERTEX_SHADER);
-        GLuint fs = m_shaders.CompileShaderStage(full_fs.c_str(), GL_FRAGMENT_SHADER);
+        GLuint fs = m_shaders.CompileShaderStage(fs_src.c_str(), GL_FRAGMENT_SHADER);
         if (vs && fs)
         {
             m_blur2_shader = m_shaders.LinkProgram(vs, fs);
@@ -153,11 +162,14 @@ void MilkdropRenderer::Resize(int w, int h)
     m_height = h;
     DestroyRenderTargets();
     CreateRenderTargets();
+
+    float aspect_x = 1.0f;
+    float aspect_y = (float)m_height / (float)m_width;
+    m_mesh.Init(64, 48, aspect_x, aspect_y);
 }
 
 bool MilkdropRenderer::CreateRenderTargets()
 {
-    // Create VS render targets (full resolution)
     for (int i = 0; i < 2; i++)
     {
         m_vs_tex[i] = m_ctx->CreateTexture(m_width, m_height,
@@ -167,7 +179,6 @@ bool MilkdropRenderer::CreateRenderTargets()
         if (!m_vs_fbo[i]) return false;
     }
 
-    // Create blur textures at progressive sizes
     int bw = m_width / 2;
     int bh = m_height / 2;
     for (int i = 0; i < NUM_BLUR_TEX; i++)
@@ -208,66 +219,118 @@ void MilkdropRenderer::DestroyRenderTargets()
     }
 }
 
+void MilkdropRenderer::FillTestPattern()
+{
+    // Simple VS + FS that draws a radial + checkerboard test pattern
+    const char* vs_src =
+        "#version 330 core\n"
+        "layout(location = 0) in vec3 pos;\n"
+        "layout(location = 2) in vec2 uv;\n"
+        "out vec2 _uv;\n"
+        "void main() {\n"
+        "    _uv = uv;\n"
+        "    gl_Position = vec4(pos, 1.0);\n"
+        "}\n";
+
+    const char* fs_src =
+        "#version 330 core\n"
+        "in vec2 _uv;\n"
+        "out vec4 fragColor;\n"
+        "void main() {\n"
+        "    vec2 uv = _uv;\n"
+        "    float r = length(uv - 0.5);\n"
+        "    float ang = atan(uv.y - 0.5, uv.x - 0.5);\n"
+        "    float checker = mod(floor(uv.x * 8.0) + floor(uv.y * 8.0), 2.0);\n"
+        "    vec3 col = 0.5 + 0.5 * cos(ang * 4.0 + r * 10.0 + vec3(0.0, 2.1, 4.2));\n"
+        "    col *= 0.7 + 0.3 * (1.0 - r * 1.4);\n"
+        "    col *= 0.5 + 0.5 * checker;\n"
+        "    fragColor = vec4(col, 1.0);\n"
+        "}\n";
+
+    GLuint vs = m_ctx->CompileShader(vs_src, GL_VERTEX_SHADER);
+    GLuint fs = m_ctx->CompileShader(fs_src, GL_FRAGMENT_SHADER);
+    if (!vs || !fs)
+    {
+        if (vs) glDeleteShader(vs);
+        if (fs) glDeleteShader(fs);
+        return;
+    }
+    GLuint prog = m_ctx->LinkProgram(vs, fs);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    if (!prog) return;
+
+    // Render test pattern to VS0
+    m_ctx->BindFBO(m_vs_fbo[0]);
+    m_ctx->SetViewport(0, 0, m_width, m_height);
+    m_ctx->Clear(0.0f, 0.0f, 0.0f, 0.0f);
+
+    glUseProgram(prog);
+    MilkdropMesh::RenderQuad();
+    glUseProgram(0);
+
+    m_ctx->DestroyShader(prog);
+
+    // Also render to VS1 so the first warp has something to see
+    m_ctx->BindFBO(m_vs_fbo[1]);
+    m_ctx->SetViewport(0, 0, m_width, m_height);
+    m_ctx->Clear(0.0f, 0.0f, 0.0f, 0.0f);
+
+    glUseProgram(prog);
+    MilkdropMesh::RenderQuad();
+    glUseProgram(0);
+
+    m_ctx->BindDefaultFBO();
+}
+
 void MilkdropRenderer::RenderFrame(float time, float dt)
 {
     if (!m_initialized) return;
 
-    // Clear the VS1 target (write target)
     m_ctx->BindFBO(m_vs_fbo[1]);
     m_ctx->SetViewport(0, 0, m_width, m_height);
     m_ctx->Clear(0.0f, 0.0f, 0.0f, 0.0f);
 
     if (m_first_frame)
     {
-        // On first frame, just clear VS0 too
         m_ctx->BindFBO(m_vs_fbo[0]);
         m_ctx->Clear(0.0f, 0.0f, 0.0f, 0.0f);
         m_ctx->BindFBO(m_vs_fbo[1]);
         m_first_frame = false;
     }
 
-    // Step 1: Render warp pass (sample from VS0, write to VS1)
-    RenderWarpPass();
-
-    // Step 2: Blur passes (sample from VS1, write to blur chain)
+    RenderWarpPass(time);
     RenderBlurPasses();
 
-    // Step 3: Composite to screen
     m_ctx->BindDefaultFBO();
     m_ctx->SetViewport(0, 0, m_ctx->Width(), m_ctx->Height());
     RenderCompositePass();
 
-    // Step 4: Swap VS buffers
     std::swap(m_vs_tex[0], m_vs_tex[1]);
     std::swap(m_vs_fbo[0], m_vs_fbo[1]);
 }
 
-void MilkdropRenderer::RenderWarpPass()
+void MilkdropRenderer::RenderWarpPass(float time)
 {
+    // Compute distorted per-vertex UVs
+    float decay = 1.0f - m_decay;
+    if (decay < 0.0f) decay = 0.0f;
+    if (decay > 1.0f) decay = 1.0f;
+
+    m_mesh.ComputeGridUVs(time, decay, m_zoom, m_rot,
+                          m_cx, m_cy, m_dx, m_dy,
+                          m_warp, m_sx, m_sy);
+
     m_ctx->BindFBO(m_vs_fbo[1]);
 
     glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
 
-    m_ctx->UseShader(m_warp_shader);
-
-    // Bind VS0 texture as sampler_main (texture unit 0)
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_vs_tex[0]);
-    glUniform1i(glGetUniformLocation(m_warp_shader, "sampler_main"), 0);
-
-    // Set texsize constant (_c7)
-    m_shaders.SetVec4(m_warp_u_texsize,
-        (float)m_width, (float)m_height,
-        1.0f / (float)m_width, 1.0f / (float)m_height);
-
-    m_ctx->DrawFullscreenQuad();
-    m_ctx->UseShader(0);
+    m_mesh.Render(m_warp_shader, m_vs_tex[0]);
 }
 
 void MilkdropRenderer::RenderBlurPasses()
 {
-    // Gaussian blur weights (default from MilkDrop)
     const float w[8] = { 4.0f, 3.8f, 3.5f, 2.9f, 1.9f, 1.2f, 0.7f, 0.3f };
     const float w1 = w[0] + w[1];
     const float w2 = w[2] + w[3];
@@ -278,9 +341,7 @@ void MilkdropRenderer::RenderBlurPasses()
     const float d3 = 4 + 2 * w[5] / w3;
     const float d4 = 6 + 2 * w[7] / w4;
     const float w_div = 0.5f / (w1 + w2 + w3 + w4);
-
     const float w_div_v = 1.0f / ((w1 + w2) * 2);
-
     float edge_c1 = 1.0f;
     float edge_c2 = 0.0f;
     float edge_c3 = 5.0f;
@@ -292,7 +353,6 @@ void MilkdropRenderer::RenderBlurPasses()
 
         if (i == 0)
         {
-            // First blur reads from VS1
             src_tex = m_vs_tex[1];
             src_w = m_width;
             src_h = m_height;
@@ -313,7 +373,6 @@ void MilkdropRenderer::RenderBlurPasses()
 
         if (i % 2 == 0)
         {
-            // Horizontal pass (blur1 shader)
             m_ctx->UseShader(m_blur1_shader);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, src_tex);
@@ -328,7 +387,6 @@ void MilkdropRenderer::RenderBlurPasses()
         }
         else
         {
-            // Vertical pass (blur2 shader)
             m_ctx->UseShader(m_blur2_shader);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, src_tex);
@@ -341,7 +399,7 @@ void MilkdropRenderer::RenderBlurPasses()
             m_shaders.SetVec4(m_blur2_u_c6, w_div_v, edge_c1, edge_c2, edge_c3);
         }
 
-        m_ctx->DrawFullscreenQuad();
+        MilkdropMesh::RenderQuad();
         m_ctx->UseShader(0);
     }
 }
@@ -353,16 +411,14 @@ void MilkdropRenderer::RenderCompositePass()
 
     m_ctx->UseShader(m_comp_shader);
 
-    // Bind VS1 texture as sampler_main
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_vs_tex[1]);
     glUniform1i(glGetUniformLocation(m_comp_shader, "sampler_main"), 0);
 
-    // Set texsize constant (_c7)
     m_shaders.SetVec4(m_comp_u_texsize,
         (float)m_width, (float)m_height,
         1.0f / (float)m_width, 1.0f / (float)m_height);
 
-    m_ctx->DrawFullscreenQuad();
+    MilkdropMesh::RenderQuad();
     m_ctx->UseShader(0);
 }
