@@ -4,18 +4,22 @@
 #include <cmath>
 #include <thread>
 
+#ifdef HAVE_PIPEWIRE
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
+#endif
 
 AudioCapture::AudioCapture()
     : m_sample_rate(44100)
     , m_fft_size(1024)
     , m_ring_write(0)
     , m_ring_read(0)
+#ifdef HAVE_PIPEWIRE
     , m_pw_stream(nullptr)
     , m_pw_main_loop(nullptr)
     , m_pw_thread(nullptr)
     , m_running(false)
+#endif
     , m_fft_window(nullptr)
     , m_fft_output(nullptr)
     , m_waveform(nullptr)
@@ -35,6 +39,7 @@ AudioCapture::~AudioCapture()
     m_fft.CleanUp();
 }
 
+#ifdef HAVE_PIPEWIRE
 void on_process(void* userdata)
 {
     AudioCapture* ac = static_cast<AudioCapture*>(userdata);
@@ -91,7 +96,7 @@ void pw_thread_fn(AudioCapture* ac)
 
     pw_core* core = pw_context_connect(context, nullptr, 0);
     if (!core) {
-        fprintf(stderr, "AudioCapture: failed to connect (PipeWire not running?)\n");
+        fprintf(stderr, "AudioCapture: PipeWire not running?\n");
         pw_context_destroy(context);
         pw_main_loop_destroy(loop);
         pw_deinit();
@@ -161,6 +166,7 @@ void pw_thread_fn(AudioCapture* ac)
     ac->m_pw_main_loop = nullptr;
     ac->m_running.store(false, std::memory_order_release);
 }
+#endif // HAVE_PIPEWIRE
 
 bool AudioCapture::Init(int sample_rate, int fft_size)
 {
@@ -177,13 +183,13 @@ bool AudioCapture::Init(int sample_rate, int fft_size)
     m_ring_write.store(0, std::memory_order_relaxed);
     m_ring_read.store(0, std::memory_order_relaxed);
 
+#ifdef HAVE_PIPEWIRE
     try {
         m_pw_thread = new std::thread(pw_thread_fn, this);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         if (!m_running.load())
         {
             fprintf(stderr, "AudioCapture: PipeWire unavailable (running without audio)\n");
-            // Thread already finished, just clean thread handle
             if (m_pw_thread)
             {
                 static_cast<std::thread*>(m_pw_thread)->join();
@@ -198,14 +204,19 @@ bool AudioCapture::Init(int sample_rate, int fft_size)
         fprintf(stderr, "AudioCapture: Failed to create PipeWire thread\n");
         return false;
     }
-
     printf("AudioCapture: PipeWire initialized (%d Hz, FFT %d)\n",
            sample_rate, fft_size);
+#else
+    fprintf(stderr, "AudioCapture: PipeWire not available (compile without audio)\n");
+    (void)fft_size;
+    (void)sample_rate;
+#endif
     return true;
 }
 
 void AudioCapture::Shutdown()
 {
+#ifdef HAVE_PIPEWIRE
     if (m_pw_thread)
     {
         if (m_running.load() && m_pw_main_loop)
@@ -214,8 +225,7 @@ void AudioCapture::Shutdown()
         delete static_cast<std::thread*>(m_pw_thread);
         m_pw_thread = nullptr;
     }
-    // Don't free work buffers here - they may be used if Init failed partially.
-    // Destructor handles final cleanup.
+#endif
 }
 
 void AudioCapture::Read(float& bass, float& mid, float& treb,
@@ -231,7 +241,6 @@ void AudioCapture::Read(float& bass, float& mid, float& treb,
             m_fft_window[i] = m_ring[(read_pos + i) % RING_SIZE];
         m_ring_read.store((read_pos + m_fft_size) % RING_SIZE, std::memory_order_release);
 
-        // Save waveform for wave rendering
         memcpy(m_waveform, m_fft_window, m_fft_size * sizeof(float));
 
         m_fft.time_to_frequency_domain(m_fft_window, m_fft_output);
