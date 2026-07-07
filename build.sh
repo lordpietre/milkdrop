@@ -17,7 +17,11 @@ install_deps() {
         ubuntu|debian)
             sudo apt update
             sudo apt install -y cmake g++ libsdl2-dev libglew-dev \
-                                libglfw3-dev libglm-dev libpipewire-0.3-dev
+                                libglfw3-dev libglm-dev libpipewire-0.3-dev \
+                                libgl1-mesa-dev libglu1-mesa-dev \
+                                libopengl-dev libglx-dev \
+                                libx11-dev libxrandr-dev libxcursor-dev \
+                                libxi-dev libxinerama-dev libxxf86vm-dev
             ;;
         fedora)
             sudo dnf install -y cmake gcc-c++ SDL2-devel glew-devel \
