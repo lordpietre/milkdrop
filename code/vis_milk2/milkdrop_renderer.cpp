@@ -611,11 +611,40 @@ void MilkdropRenderer::RenderCompositePass()
     glDisable(GL_DEPTH_TEST);
 
     GLuint shader = m_comp_shader_custom ? m_comp_shader_custom : m_comp_shader;
+    if (!shader)
+    {
+        // Fallback: just blit the texture using a hardcoded shader
+        glUseProgram(0);
+        // Core profile requires a shader; use a minimal one
+        const char* vs =
+            "#version 330 core\n"
+            "layout(location=0) in vec3 pos;\n"
+            "layout(location=2) in vec2 uv;\n"
+            "out vec2 vUv;\n"
+            "void main(){ vUv=uv; gl_Position=vec4(pos,1.0); }\n";
+        const char* fs =
+            "#version 330 core\n"
+            "in vec2 vUv; out vec4 fragColor;\n"
+            "uniform sampler2D tex;\n"
+            "void main(){ fragColor=texture(tex,vUv); }\n";
+        GLuint vs_obj = m_ctx->CompileShader(vs, GL_VERTEX_SHADER);
+        GLuint fs_obj = m_ctx->CompileShader(fs, GL_FRAGMENT_SHADER);
+        if (vs_obj && fs_obj)
+        {
+            shader = m_ctx->LinkProgram(vs_obj, fs_obj);
+            glDeleteShader(vs_obj);
+            glDeleteShader(fs_obj);
+        }
+    }
+
+    if (!shader) return;
+
     m_ctx->UseShader(shader);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_vs_tex[1]);
     glUniform1i(glGetUniformLocation(shader, "sampler_main"), 0);
+    glUniform1i(glGetUniformLocation(shader, "tex"), 0);
 
     GLint texsize_loc = glGetUniformLocation(shader, "_c7");
     if (texsize_loc >= 0)

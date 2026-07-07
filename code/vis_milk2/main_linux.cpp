@@ -47,14 +47,31 @@ int main(int argc, char* argv[])
     std::string data_path;
     std::string preset_path;
     {
-        const char* candidates[] = {
+        // Also try relative to the executable location
+        std::string exe_dir;
+        if (argc > 0 && argv[0][0] != '\0')
+        {
+            exe_dir = argv[0];
+            size_t slash = exe_dir.find_last_of("/\\");
+            if (slash != std::string::npos)
+                exe_dir = exe_dir.substr(0, slash);
+            else
+                exe_dir = ".";
+        }
+        else
+        {
+            exe_dir = ".";
+        }
+
+        std::string candidates[] = {
+            exe_dir + "/resources/Milkdrop2/data",
             "resources/Milkdrop2/data",
             "../resources/Milkdrop2/data",
             "../../resources/Milkdrop2/data",
         };
-        for (auto* cp : candidates)
+        for (auto& cp : candidates)
         {
-            FILE* f = fopen((std::string(cp) + "/include.glsl").c_str(), "r");
+            FILE* f = fopen((cp + "/include.glsl").c_str(), "r");
             if (f)
             {
                 fclose(f);
@@ -64,19 +81,21 @@ int main(int argc, char* argv[])
         }
         if (data_path.empty())
         {
-            fprintf(stderr, "Cannot find shader data directory\n");
+            fprintf(stderr, "Cannot find shader data directory (searched %zu locations including %s)\n",
+                    sizeof(candidates)/sizeof(candidates[0]), candidates[0].c_str());
             return 1;
         }
 
         // Find presets directory
-        const char* preset_candidates[] = {
+        std::string preset_candidates[] = {
+            exe_dir + "/presets",
             "presets",
             "../presets",
             "../../presets",
         };
-        for (auto* cp : preset_candidates)
+        for (auto& cp : preset_candidates)
         {
-            FILE* f = fopen((std::string(cp) + "/101-per_frame.milk").c_str(), "r");
+            FILE* f = fopen((cp + "/101-per_frame.milk").c_str(), "r");
             if (f)
             {
                 fclose(f);
@@ -120,8 +139,15 @@ int main(int argc, char* argv[])
         g_renderer.FillTestPattern();
     }
 
+    // Clear default framebuffer to black
+    g_gl.Clear(0, 0, 0, 1);
+    g_gl.SwapBuffers();
+    g_gl.Clear(0, 0, 0, 1);
+
     printf("MilkDrop renderer initialized.\n");
     printf("  Render targets: %dx%d\n", width, height);
+    printf("  Shaders: %s\n", data_path.c_str());
+    printf("  Presets: %s\n", preset_path.empty() ? "(none)" : preset_path.c_str());
     printf("  Controls: ESC=quit\n\n");
 
     Uint32 lastFrameTime = SDL_GetTicks();
@@ -164,7 +190,8 @@ int main(int argc, char* argv[])
         frameCount++;
         if (now - fpsTimer >= 1000)
         {
-            // printf("FPS: %d\n", frameCount);
+            printf("FPS: %d | bass=%.2f mid=%.2f treb=%.2f\n",
+                   frameCount, bass, mid, treb);
             frameCount = 0;
             fpsTimer = now;
         }
