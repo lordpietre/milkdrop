@@ -142,13 +142,48 @@ int main(int argc, char* argv[])
     // Clear default framebuffer to black
     g_gl.Clear(0, 0, 0, 1);
     g_gl.SwapBuffers();
-    g_gl.Clear(0, 0, 0, 1);
 
     printf("MilkDrop renderer initialized.\n");
     printf("  Render targets: %dx%d\n", width, height);
     printf("  Shaders: %s\n", data_path.c_str());
     printf("  Presets: %s\n", preset_path.empty() ? "(none)" : preset_path.c_str());
     printf("  Controls: ESC=quit\n\n");
+
+    // Diagnostic: render a red quad directly to screen
+    {
+        const char* vs = "#version 330 core\nlayout(location=0)in vec3 p;void main(){gl_Position=vec4(p,1);}\n";
+        const char* fs = "#version 330 core\nout vec4 c;void main(){c=vec4(1,0,0,1);}\n";
+        GLuint vs_o = g_gl.CompileShader(vs, GL_VERTEX_SHADER);
+        GLuint fs_o = g_gl.CompileShader(fs, GL_FRAGMENT_SHADER);
+        if (vs_o && fs_o)
+        {
+            GLuint prog = g_gl.LinkProgram(vs_o, fs_o);
+            glDeleteShader(vs_o); glDeleteShader(fs_o);
+            if (prog)
+            {
+                g_gl.UseShader(prog);
+                float verts[] = { -1,-1,0, 1,-1,0, 1,1,0, -1,1,0 };
+                GLuint vao, vbo;
+                glGenVertexArrays(1, &vao);
+                glGenBuffers(1, &vbo);
+                glBindVertexArray(vao);
+                glBindBuffer(GL_ARRAY_BUFFER, vbo);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STREAM_DRAW);
+                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+                glEnableVertexAttribArray(0);
+                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+                glBindVertexArray(0);
+                glDeleteBuffers(1, &vbo);
+                glDeleteVertexArrays(1, &vao);
+                g_gl.UseShader(0);
+                g_gl.DestroyShader(prog);
+                g_gl.SwapBuffers();
+                printf("DIAG: drew red quad to screen. If you see RED, basic GL works.\n");
+                printf("      If still GREEN, problem is SDL/GL context layer.\n");
+                SDL_Delay(2000);  // pause 2s so user can see
+            }
+        }
+    }
 
     Uint32 lastFrameTime = SDL_GetTicks();
     Uint32 startTime = lastFrameTime;
